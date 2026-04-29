@@ -1,6 +1,4 @@
-# gravity
-
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines React, TanStack Router, and more.
+Gravity is a local runtime interface for GitHub Actions, built on top of act. It lets you run, monitor, and debug your workflows locally through a modern web UI — no need to push to GitHub just to test a change.
 
 ## Features
 
@@ -11,6 +9,7 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **Electrobun** - Lightweight desktop shell for web frontends
 - **Oxlint** - Oxlint + Oxfmt (linting & formatting)
 - **Turborepo** - Optimized monorepo build system
+- **Golang backend** - Fast and efficient backend for running GitHub Actions locally. This share WASM to communicate with the frontend, and is built with Go for performance and ease of development.
 
 ## Getting Started
 
