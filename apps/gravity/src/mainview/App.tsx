@@ -17,8 +17,8 @@ function App() {
 				headers: {
 					"Content-Type": "application/json",
 				},
-				// Testando com o diretório raiz do monorepo (onde fica o .github/workflows do gravity)
-				body: JSON.stringify({ workdir: "../../" }) 
+				// Testando com o diretório raiz do monorepo (6 níveis acima do bin de build)
+				body: JSON.stringify({ workdir: "../../../../../../" }) 
 			});
 
 			const data = await res.json();

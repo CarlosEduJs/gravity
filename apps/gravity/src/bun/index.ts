@@ -1,13 +1,35 @@
 import { BrowserWindow, Updater } from "electrobun/bun";
 import { spawn } from "bun";
-import { join } from "path";
+import { join, resolve } from "path";
+import { existsSync } from "fs";
 
 const DEV_SERVER_PORT = 5173;
 const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}`;
 
 // --- GRAVITY CORE BRIDGE ---
-const corePath = join(process.cwd(), "bin", "gravity-core");
-console.log("Starting gravity-core at", corePath);
+function findCoreBinary() {
+    const cwd = process.cwd();
+    const pathsToTry = [
+        join(cwd, "../../../..", "bin", "gravity-core"), 
+        join(cwd, "bin", "gravity-core"),
+        resolve(cwd, "../../../../../bin/gravity-core")
+    ];
+
+    for (const p of pathsToTry) {
+        if (existsSync(p)) {
+            return p;
+        }
+    }
+    
+    return join(cwd, "gravity-core");
+}
+
+const corePath = findCoreBinary();
+console.log("Attempting to start gravity-core at:", corePath);
+
+if (!existsSync(corePath)) {
+    console.error(`CRITICAL: gravity-core binary not found at ${corePath}. Make sure to run 'go build' in packages/core.`);
+}
 
 const coreProcess = spawn({
 	cmd: [corePath],
@@ -19,6 +41,7 @@ const coreProcess = spawn({
 const pendingRequests = new Map();
 
 async function listenToCore() {
+    if (!coreProcess.stdout) return;
 	const reader = coreProcess.stdout.getReader();
 	const decoder = new TextDecoder();
 	let buffer = "";
@@ -41,8 +64,8 @@ async function listenToCore() {
 					if (response.error) reject(new Error(response.error));
 					else resolve(response.result);
 				}
-			} catch (e: any) {
-				console.error("Failed parse core output:", line, e.message);
+			} catch (e) {
+				console.error("Failed to parse core output:", line);
 			}
 		}
 	}
@@ -70,10 +93,12 @@ Bun.serve({
 				const body = await req.json();
 				const requestId = Math.floor(Math.random() * 1000000);
 
+				const absoluteWorkdir = resolve(process.cwd(), body.workdir || ".");
+
 				const rpcReq = {
 					jsonrpc: "2.0",
 					method: "plan",
-					params: { workdir: body.workdir || "." },
+					params: { workdir: absoluteWorkdir },
 					id: requestId,
 				};
 
