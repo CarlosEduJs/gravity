@@ -3,6 +3,8 @@ import { spawn } from "bun";
 import { join, resolve } from "path";
 import { existsSync } from "fs";
 
+import type { GravityEvent, RPCResponse, RPCNotification } from "../types/core";
+
 const DEV_SERVER_PORT = 5173;
 const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}`;
 
@@ -41,7 +43,7 @@ const coreProcess = spawn({
 const pendingRequests = new Map();
 
 // SSE Clients Registry
-const sseClients = new Set<(event: any) => void>();
+const sseClients = new Set<(event: GravityEvent) => void>();
 
 async function listenToCore() {
     if (!coreProcess.stdout) return;
@@ -60,21 +62,23 @@ async function listenToCore() {
 		for (const line of lines) {
 			if (!line.trim()) continue;
 			try {
-				const response = JSON.parse(line);
+				const response = JSON.parse(line) as RPCResponse | RPCNotification<GravityEvent>;
 				
-				if (response.method === "gravity.event") {
+				if ("method" in response && response.method === "gravity.event") {
 				    for (const client of sseClients) {
-				        client(response.params);
+				        client(response.params as GravityEvent);
 				    }
 				} 
-				else if (response.id !== undefined && pendingRequests.has(response.id)) {
+				else if ("id" in response && response.id !== undefined && pendingRequests.has(response.id)) {
 					const { resolve, reject } = pendingRequests.get(response.id);
 					pendingRequests.delete(response.id);
-					if (response.error) reject(new Error(response.error));
+					if (response.error) reject(new Error(response.error.message));
 					else resolve(response.result);
 				}
-			} catch (e: any) {
-				console.error("Failed to parse core output:", e.message);
+			} catch (e: unknown) {
+			    if (e instanceof Error) {
+				    console.error("Failed to parse core output:", e.message);
+				}
 			}
 		}
 	}
@@ -101,7 +105,7 @@ Bun.serve({
 		if (url.pathname === "/events" && req.method === "GET") {
 		    const stream = new ReadableStream({
 		        start(controller) {
-		            const sendEvent = (event: any) => {
+		            const sendEvent = (event: GravityEvent) => {
 		                controller.enqueue(`data: ${JSON.stringify(event)}\n\n`);
 		            };
 		            sseClients.add(sendEvent);
@@ -144,9 +148,9 @@ Bun.serve({
 					{ result },
 					{ headers: { "Access-Control-Allow-Origin": "*" } }
 				);
-			} catch (e: any) {
+			} catch (e: unknown) {
 				return Response.json(
-					{ error: e.message },
+					{ error: e instanceof Error ? e.message : String(e) },
 					{ status: 500, headers: { "Access-Control-Allow-Origin": "*" } }
 				);
 			}

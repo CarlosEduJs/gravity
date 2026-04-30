@@ -14,12 +14,34 @@ const (
 	EventRunFinished  EventType = "run.finished"
 )
 
+// Payloads Estritos
+
+type Payload interface {
+	isPayload()
+}
+
+type LogPayload struct {
+    Message string `json:"message"`
+}
+func (LogPayload) isPayload() {}
+
+type RunStartedPayload struct {
+    Job   string `json:"job"`
+    Event string `json:"event"`
+}
+func (RunStartedPayload) isPayload() {}
+
+type RunFinishedPayload struct {
+	Success bool `json:"success"`
+}
+func (RunFinishedPayload) isPayload() {}
+
 type Event struct {
-	ID        string         `json:"id"`
-	RunID     string         `json:"runId"`
-	Type      EventType      `json:"type"`
-	Timestamp time.Time      `json:"timestamp"`
-	Payload   map[string]any `json:"payload"`
+	ID        string    `json:"id"`
+	RunID     string    `json:"runId"`
+	Type      EventType `json:"type"`
+	Timestamp time.Time `json:"timestamp"`
+	Payload   Payload   `json:"payload"`
 }
 
 type Bus interface {

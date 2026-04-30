@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
+import type { Workflow, GravityEvent, Job } from "../types/core";
 
 import { Button } from "@gravity/ui/components/button";
 
 function App() {
-	const [workflows, setWorkflows] = useState<any[] | null>(null);
+	const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	
@@ -16,24 +17,24 @@ function App() {
 		const evtSource = new EventSource("http://localhost:5174/events");
 		
 		evtSource.onmessage = (event) => {
-			const data = JSON.parse(event.data);
+			const data = JSON.parse(event.data) as GravityEvent;
 			
 			if (data.type === "log.output") {
 				setLogs((prev) => [...prev, {
 					id: data.id,
-					text: data.payload?.message || "",
+					text: data.payload.message,
 					type: "log"
 				}]);
 			} else if (data.type === "run.started") {
 				setLogs((prev) => [...prev, {
 					id: data.id,
-					text: `RUN STARTED (Job: ${data.payload?.job || 'all'})`,
+					text: `RUN STARTED (Job: ${data.payload.event || 'all'})`,
 					type: "system"
 				}]);
 			} else if (data.type === "run.finished") {
 				setLogs((prev) => [...prev, {
 					id: data.id,
-					text: `RUN FINISHED (Success: ${data.payload?.success})`,
+					text: `RUN FINISHED (Success: ${data.payload.success})`,
 					type: "system"
 				}]);
 				setIsRunning(false);
@@ -68,8 +69,8 @@ function App() {
 			} else {
 				setWorkflows(data.result);
 			}
-		} catch (e: any) {
-			setError(e.message);
+		} catch (e: unknown) {
+			setError(e instanceof Error ? e.message : String(e));
 		} finally {
 			setLoading(false);
 		}
@@ -86,8 +87,8 @@ function App() {
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ workdir: "../../../../../../", job: jobId }) 
 			});
-		} catch (e: any) {
-			setError(e.message);
+		} catch (e: unknown) {
+			setError(e instanceof Error ? e.message : String(e));
 			setIsRunning(false);
 		}
 	};
@@ -136,7 +137,7 @@ function App() {
 											<p className="text-xs mb-4 font-mono">{wf.file}</p>
 											
 											<div className="flex flex-col gap-2">
-												{wf.jobs?.map((job: any, j: number) => (
+												{wf.jobs?.map((job: Job, j: number) => (
 													<div key={j} className="flex items-center justify-between pl-3 pr-2 py-2 rounded border border-white/5 hover:border-indigo-500/30 transition-colors">
 														<span className="font-mono text-sm text-muted-foreground">{job.name || job.id}</span>
 														

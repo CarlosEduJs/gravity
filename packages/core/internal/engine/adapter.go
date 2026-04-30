@@ -37,11 +37,9 @@ func (a *ActAdapter) Plan(workdir string) ([]Workflow, error) {
 
 	var workflows []Workflow
 
-	// Itera sobre as stages e runs (jobs) gerados pelo PlanAll do act
 	for _, stage := range plan.Stages {
 		for _, run := range stage.Runs {
 			
-			// Encontra se já temos este workflow registrado (pelo arquivo)
 			var wf *Workflow
 			for i := range workflows {
 				if workflows[i].File == run.Workflow.File {
@@ -50,7 +48,6 @@ func (a *ActAdapter) Plan(workdir string) ([]Workflow, error) {
 				}
 			}
 
-			// Se não existe ainda, cria um novo
 			if wf == nil {
 				workflows = append(workflows, Workflow{
 					File: run.Workflow.File,
@@ -60,7 +57,6 @@ func (a *ActAdapter) Plan(workdir string) ([]Workflow, error) {
 				wf = &workflows[len(workflows)-1]
 			}
 
-			// Adiciona o job ao workflow
 			wf.Jobs = append(wf.Jobs, Job{
 				ID:   run.JobID,
 				Name: run.String(),
@@ -105,30 +101,27 @@ func (a *ActAdapter) Run(ctx context.Context, opts RunOptions) error {
 		return fmt.Errorf("falha ao instanciar runner: %w", err)
 	}
 
-	// Injeta a factory customizada no context
 	factory := &GravityLoggerFactory{bus: a.bus, runID: opts.RunID}
 	ctx = runner.WithJobLoggerFactory(ctx, factory)
 
 	executor := r.NewPlanExecutor(plan)
 
-	// Dispara evento de início
 	a.bus.Publish(eventbus.Event{
 		ID:        "start-" + opts.RunID,
 		RunID:     opts.RunID,
 		Type:      eventbus.EventRunStarted,
 		Timestamp: time.Now(),
-		Payload:   map[string]any{"job": opts.Job, "event": opts.Event},
+		Payload:   eventbus.RunStartedPayload{Job: opts.Job, Event: opts.Event},
 	})
 
 	err = executor(ctx)
 
-	// Dispara evento de fim
 	a.bus.Publish(eventbus.Event{
 		ID:        "end-" + opts.RunID,
 		RunID:     opts.RunID,
 		Type:      eventbus.EventRunFinished,
 		Timestamp: time.Now(),
-		Payload:   map[string]any{"success": err == nil},
+		Payload:   eventbus.RunFinishedPayload{Success: err == nil},
 	})
 
 	return err
