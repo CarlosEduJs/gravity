@@ -1,11 +1,55 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 
-import { Button } from "@gravity/ui/components/button"
+import { Button } from "@gravity/ui/components/button";
 
 function App() {
 	const [workflows, setWorkflows] = useState<any[] | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	
+	const [logs, setLogs] = useState<{id: string, text: string, type: string}[]>([]);
+	const [isRunning, setIsRunning] = useState(false);
+	
+	const logsEndRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		const evtSource = new EventSource("http://localhost:5174/events");
+		
+		evtSource.onmessage = (event) => {
+			const data = JSON.parse(event.data);
+			
+			if (data.type === "log.output") {
+				setLogs((prev) => [...prev, {
+					id: data.id,
+					text: data.payload?.message || "",
+					type: "log"
+				}]);
+			} else if (data.type === "run.started") {
+				setLogs((prev) => [...prev, {
+					id: data.id,
+					text: `RUN STARTED (Job: ${data.payload?.job || 'all'})`,
+					type: "system"
+				}]);
+			} else if (data.type === "run.finished") {
+				setLogs((prev) => [...prev, {
+					id: data.id,
+					text: `RUN FINISHED (Success: ${data.payload?.success})`,
+					type: "system"
+				}]);
+				setIsRunning(false);
+			}
+		};
+
+		return () => {
+			evtSource.close();
+		};
+	}, []);
+
+	useEffect(() => {
+		if (logsEndRef.current) {
+			logsEndRef.current.scrollIntoView({ behavior: "smooth" });
+		}
+	}, [logs]);
 
 	const loadWorkflows = async () => {
 		setLoading(true);
@@ -14,10 +58,7 @@ function App() {
 		try {
 			const res = await fetch("http://localhost:5174/plan", {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-				},
-				// Testando com o diretório raiz do monorepo (6 níveis acima do bin de build)
+				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ workdir: "../../../../../../" }) 
 			});
 
@@ -34,70 +75,119 @@ function App() {
 		}
 	};
 
+	const runJob = async (jobId: string) => {
+		setIsRunning(true);
+		setLogs([]); 
+		setError(null);
+		
+		try {
+			fetch("http://localhost:5174/run", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ workdir: "../../../../../../", job: jobId }) 
+			});
+		} catch (e: any) {
+			setError(e.message);
+			setIsRunning(false);
+		}
+	};
+
 	return (
-		<div>
-			<div>
-				<h1>
-					Gravity <span>Core</span>
-				</h1>
-				<p>
-					Local Runtime Dashboard for nektos/act
-				</p>
-
+		<div className="min-h-screen p-8 flex flex-col">
+			<div className="container mx-auto max-w-6xl flex-grow grid grid-cols-1 lg:grid-cols-2 gap-8">
 				<div>
-					<div>
-						<div>
-							<h2>Workflows</h2>
-							<p>Escaneando diretório local por arquivos do GitHub Actions</p>
-						</div>
-						<Button
-							size= "lg"
-							variant={"default"}
-							onClick={loadWorkflows}
-							disabled={loading}
-						>
-							{loading ? "Planejando..." : "Carregar Planos (Go)"}
-						</Button>
-					</div>
+					<h1 className="text-4xl font-bold mb-2 tracking-tight">
+						Gravity <span>Core</span>
+					</h1>
+					<p className="text-lg mb-8">
+						Local Runtime Dashboard
+					</p>
 
-					{error && (
-						<div>
-							Erro: {error}
+					<div className="border rounded-xl p-6 ">
+						<div className="flex items-center justify-between mb-6">
+							<div>
+								<h2 className="text-2xl font-semibold">Workflows</h2>
+							</div>
+							<Button
+								onClick={loadWorkflows}
+								disabled={loading || isRunning}
+								variant={"default"}
+							>
+								{loading ? "Planejando..." : "Carregar Planos"}
+							</Button>
 						</div>
-					)}
 
-					{workflows && (
-						<div>
-							{workflows.length === 0 ? (
-								<p>Nenhum workflow encontrado.</p>
-							) : (
-								workflows.map((wf, i) => (
-									<div key={i}>
-										<h3>
-											{wf.name || "Unnamed Workflow"}
-										</h3>
-										<p>{wf.file}</p>
-										
-										<div>
-											{wf.jobs?.map((job: any, j: number) => (
-												<div key={j}>
-													<span>{job.name || job.id}</span>
-													<span>job</span>
-												</div>
-											))}
+						{error && (
+							<div className="p-4 rounded-lg mb-6 font-mono text-sm">
+								Erro: {error}
+							</div>
+						)}
+
+						{workflows && (
+							<div className="space-y-4">
+								{workflows.length === 0 ? (
+									<p className="italic">Nenhum workflow encontrado.</p>
+								) : (
+									workflows.map((wf, i) => (
+										<div key={i} className="rounded-lg p-4">
+											<h3 className="text-lg font-medium mb-1">
+												{wf.name || "Unnamed Workflow"}
+											</h3>
+											<p className="text-xs mb-4 font-mono">{wf.file}</p>
+											
+											<div className="flex flex-col gap-2">
+												{wf.jobs?.map((job: any, j: number) => (
+													<div key={j} className="flex items-center justify-between pl-3 pr-2 py-2 rounded border border-white/5 hover:border-indigo-500/30 transition-colors">
+														<span className="font-mono text-sm text-muted-foreground">{job.name || job.id}</span>
+														
+														<Button 
+															onClick={() => runJob(job.id)}
+															disabled={isRunning}
+															variant={"default"}
+														>
+															Run
+														</Button>
+													</div>
+												))}
+											</div>
 										</div>
-									</div>
-								))
-							)}
-						</div>
-					)}
-
-					{!workflows && !loading && !error && (
-						<div>
-							<p>Clique em Carregar Planos para invocar o binário Go</p>
-						</div>
-					)}
+									))
+								)}
+							</div>
+						)}
+					</div>
 				</div>
+
+				<div className="flex flex-col rounded-xl overflow-hidden border h-[80vh] sticky top-8">
+					<div className="bg-card px-4 py-3 flex items-center justify-between">
+						<div className="flex items-center gap-2">
+							<div className="w-3 h-3 rounded-full bg-red-500/80"></div>
+							<div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
+							<div className="w-3 h-3 rounded-full bg-green-500/80"></div>
+							<span className="ml-2 text-sm font-medium text-gray-400 font-mono">gravity-terminal</span>
+						</div>
+						{isRunning && (
+							<span className="flex h-3 w-3 relative">
+								<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+								<span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+							</span>
+						)}
+					</div>
+					
+					<div className="flex-1 p-4 overflow-y-auto font-mono text-xs leading-relaxed">
+						{logs.length === 0 ? (
+							<p className="italic">Waiting for execution...</p>
+						) : (
+							logs.map((log) => (
+								<div key={log.id} className={`${log.type === 'system' ? 'text-indigo-400  my-2' : 'text-accent'}`}>
+									{log.text}
+								</div>
+							))
+						)}
+						<div ref={logsEndRef} />
+					</div>
+				</div>
+
 			</div>
 		</div>
 	);

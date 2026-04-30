@@ -40,6 +40,9 @@ const coreProcess = spawn({
 
 const pendingRequests = new Map();
 
+// SSE Clients Registry
+const sseClients = new Set<(event: any) => void>();
+
 async function listenToCore() {
     if (!coreProcess.stdout) return;
 	const reader = coreProcess.stdout.getReader();
@@ -58,14 +61,20 @@ async function listenToCore() {
 			if (!line.trim()) continue;
 			try {
 				const response = JSON.parse(line);
-				if (response.id && pendingRequests.has(response.id)) {
+				
+				if (response.method === "gravity.event") {
+				    for (const client of sseClients) {
+				        client(response.params);
+				    }
+				} 
+				else if (response.id !== undefined && pendingRequests.has(response.id)) {
 					const { resolve, reject } = pendingRequests.get(response.id);
 					pendingRequests.delete(response.id);
 					if (response.error) reject(new Error(response.error));
 					else resolve(response.result);
 				}
-			} catch (e) {
-				console.error("Failed to parse core output:", line);
+			} catch (e: any) {
+				console.error("Failed to parse core output:", e.message);
 			}
 		}
 	}
@@ -87,18 +96,41 @@ Bun.serve({
 				},
 			});
 		}
+		
+		// Endpoint Server-Sent Events para os Logs e Status
+		if (url.pathname === "/events" && req.method === "GET") {
+		    const stream = new ReadableStream({
+		        start(controller) {
+		            const sendEvent = (event: any) => {
+		                controller.enqueue(`data: ${JSON.stringify(event)}\n\n`);
+		            };
+		            sseClients.add(sendEvent);
+		            
+		            req.signal.addEventListener("abort", () => {
+		                sseClients.delete(sendEvent);
+		            });
+		        }
+		    });
+		    return new Response(stream, {
+		        headers: {
+		            "Content-Type": "text/event-stream",
+		            "Cache-Control": "no-cache",
+		            "Connection": "keep-alive",
+		            "Access-Control-Allow-Origin": "*"
+		        }
+		    });
+		}
 
-		if (url.pathname === "/plan" && req.method === "POST") {
+		if ((url.pathname === "/plan" || url.pathname === "/run") && req.method === "POST") {
 			try {
 				const body = await req.json();
 				const requestId = Math.floor(Math.random() * 1000000);
-
 				const absoluteWorkdir = resolve(process.cwd(), body.workdir || ".");
 
 				const rpcReq = {
 					jsonrpc: "2.0",
-					method: "plan",
-					params: { workdir: absoluteWorkdir },
+					method: url.pathname.replace("/", ""), // "plan" ou "run"
+					params: { workdir: absoluteWorkdir, job: body.job },
 					id: requestId,
 				};
 

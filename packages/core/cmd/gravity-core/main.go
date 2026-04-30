@@ -17,6 +17,7 @@ type RPCRequest struct {
 	Method  string `json:"method"`
 	Params  struct {
 		Workdir string `json:"workdir"`
+		Job     string `json:"job"`
 	} `json:"params"`
 	ID int `json:"id"`
 }
@@ -114,6 +115,7 @@ func main() {
 				opts := engine.RunOptions{
 					RunID:    "run-12345",
 					Event:    "push",
+					Job:      reqData.Params.Job,
 					Workdir:  reqData.Params.Workdir,
 					EventBus: bus,
 				}
