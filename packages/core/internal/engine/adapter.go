@@ -94,6 +94,12 @@ func (a *ActAdapter) Run(ctx context.Context, opts RunOptions) error {
 		Workdir:   opts.Workdir,
 		EventName: opts.Event,
 		LogOutput: true,
+		Platforms: map[string]string{
+			"ubuntu-latest": "catthehacker/ubuntu:act-latest",
+			"ubuntu-22.04":  "catthehacker/ubuntu:act-22.04",
+			"ubuntu-20.04":  "catthehacker/ubuntu:act-20.04",
+			"ubuntu-18.04":  "catthehacker/ubuntu:act-18.04",
+		},
 	}
 
 	r, err := runner.New(runnerConfig)
