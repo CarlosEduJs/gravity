@@ -16,9 +16,10 @@
 		"noUnusedParameters": true,
 		"noFallthroughCasesInSwitch": true,
 		"baseUrl": ".",
-    	"paths": {
-      	  "@/*": ["./src/*"]
-    	}
+		"paths": {
+			"@/*": ["./src/*"],
+			"@gravity/ui/*": ["../../packages/ui/src/*"]
+		}
 	},
 	"include": ["src"],
 	"exclude": ["node_modules", "dist", "build", "../../package/dist"]

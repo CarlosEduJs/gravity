@@ -8,7 +8,8 @@ export default defineConfig({
 	root: "src/mainview",
 	resolve: {
 		alias: {
-			"@gravity/ui": path.resolve(__dirname, "../../packages/ui/src/styles"),
+			"@gravity/ui/styles": path.resolve(__dirname, "../../packages/ui/src/styles"),
+			"@gravity/ui": path.resolve(__dirname, "../../packages/ui/src"),
 		},
 	},
 	build: {

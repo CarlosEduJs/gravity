@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { Button } from "@gravity/ui/components/button"
+
 function App() {
 	const [workflows, setWorkflows] = useState<any[] | null>(null);
 	const [loading, setLoading] = useState(false);
@@ -48,12 +50,14 @@ function App() {
 							<h2>Workflows</h2>
 							<p>Escaneando diretório local por arquivos do GitHub Actions</p>
 						</div>
-						<button
+						<Button
+							size= "lg"
+							variant={"default"}
 							onClick={loadWorkflows}
 							disabled={loading}
 						>
 							{loading ? "Planejando..." : "Carregar Planos (Go)"}
-						</button>
+						</Button>
 					</div>
 
 					{error && (
