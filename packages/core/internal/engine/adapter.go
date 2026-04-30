@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 
 	"github.com/nektos/act/pkg/model"
-	"github.com/nektos/act/pkg/runner" // nolint:unused
 )
 
 // ActAdapter implementa a interface Engine utilizando o nektos/act
