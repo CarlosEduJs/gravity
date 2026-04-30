@@ -3,16 +3,21 @@ package engine
 import (
 	"context"
 	"fmt"
+	"g-core/internal/eventbus"
 	"path/filepath"
+	"time"
 
 	"github.com/nektos/act/pkg/model"
+	"github.com/nektos/act/pkg/runner"
 )
 
 // ActAdapter implementa a interface Engine utilizando o nektos/act
-type ActAdapter struct{}
+type ActAdapter struct{
+	bus eventbus.Bus
+}
 
-func NewActAdapter() *ActAdapter {
-	return &ActAdapter{}
+func NewActAdapter(bus eventbus.Bus) *ActAdapter {
+	return &ActAdapter{bus: bus}
 }
 
 // Plan lê o diretório de trabalho e extrai os workflows e seus jobs
@@ -68,7 +73,63 @@ func (a *ActAdapter) Plan(workdir string) ([]Workflow, error) {
 
 // Run executa um workflow no nektos/act
 func (a *ActAdapter) Run(ctx context.Context, opts RunOptions) error {
-	// WIP: Próxima etapa (Injeção de logger usando WithJobLoggerFactory e context)
-	// Vamos focar no Plan() primeiro para validar o funcionamento.
-	return fmt.Errorf("Run não implementado ainda")
+	workflowPath := filepath.Join(opts.Workdir, ".github", "workflows")
+	
+	wp, err := model.NewWorkflowPlanner(workflowPath, false, false)
+	if err != nil {
+		return fmt.Errorf("falha ao criar WorkflowPlanner: %w", err)
+	}
+
+	var plan *model.Plan
+	if opts.Job != "" {
+		plan, err = wp.PlanJob(opts.Job)
+	} else if opts.Event != "" {
+		plan, err = wp.PlanEvent(opts.Event)
+	} else {
+		// Default to push event
+		plan, err = wp.PlanEvent("push")
+	}
+
+	if err != nil {
+		return fmt.Errorf("falha ao planejar execução: %w", err)
+	}
+
+	runnerConfig := &runner.Config{
+		Workdir:   opts.Workdir,
+		EventName: opts.Event,
+		LogOutput: true,
+	}
+
+	r, err := runner.New(runnerConfig)
+	if err != nil {
+		return fmt.Errorf("falha ao instanciar runner: %w", err)
+	}
+
+	// Injeta a factory customizada no context
+	factory := &GravityLoggerFactory{bus: a.bus, runID: opts.RunID}
+	ctx = runner.WithJobLoggerFactory(ctx, factory)
+
+	executor := r.NewPlanExecutor(plan)
+
+	// Dispara evento de início
+	a.bus.Publish(eventbus.Event{
+		ID:        "start-" + opts.RunID,
+		RunID:     opts.RunID,
+		Type:      eventbus.EventRunStarted,
+		Timestamp: time.Now(),
+		Payload:   map[string]any{"job": opts.Job, "event": opts.Event},
+	})
+
+	err = executor(ctx)
+
+	// Dispara evento de fim
+	a.bus.Publish(eventbus.Event{
+		ID:        "end-" + opts.RunID,
+		RunID:     opts.RunID,
+		Type:      eventbus.EventRunFinished,
+		Timestamp: time.Now(),
+		Payload:   map[string]any{"success": err == nil},
+	})
+
+	return err
 }

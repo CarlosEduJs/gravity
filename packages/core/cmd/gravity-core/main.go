@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
-	"fmt"
 	"os"
+	"sync"
 
 	"g-core/internal/engine"
+	"g-core/internal/eventbus"
 )
 
 // RPCRequest representa uma chamada JSON-RPC simples vinda do Electrobun
@@ -27,47 +29,105 @@ type RPCResponse struct {
 	ID      int    `json:"id"`
 }
 
+// RPCNotification representa eventos sem ID (stream em tempo real)
+type RPCNotification struct {
+	JSONRPC string `json:"jsonrpc"`
+	Method  string `json:"method"`
+	Params  any    `json:"params"`
+}
+
+// Dispatcher garante que o stdout seja um stream JSON unificado e thread-safe
+type Dispatcher struct {
+	mu sync.Mutex
+}
+
+func NewDispatcher() *Dispatcher {
+	return &Dispatcher{}
+}
+
+// Write escreve o JSON serializado de forma atômica no stdout
+func (d *Dispatcher) Write(payload any) {
+	out, err := json.Marshal(payload)
+	if err != nil {
+		return
+	}
+	
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	
+	os.Stdout.Write(out)
+	os.Stdout.Write([]byte("\n"))
+}
+
+func (d *Dispatcher) SendResult(id int, result any) {
+	d.Write(RPCResponse{JSONRPC: "2.0", Result: result, ID: id})
+}
+
+func (d *Dispatcher) SendError(id int, errStr string) {
+	d.Write(RPCResponse{JSONRPC: "2.0", Error: errStr, ID: id})
+}
+
+func (d *Dispatcher) SendEvent(event eventbus.Event) {
+	d.Write(RPCNotification{
+		JSONRPC: "2.0",
+		Method:  "gravity.event",
+		Params:  event,
+	})
+}
+
 func main() {
-	adapter := engine.NewActAdapter()
+	dispatcher := NewDispatcher()
+
+	// inicia o EventBus e linkar ao Dispatcher
+	bus := eventbus.NewMemoryBus()
+	bus.Subscribe(func(e eventbus.Event) {
+		// Toda vez que um evento ocorrer no bus, despacha como JSON-RPC Notification
+		dispatcher.SendEvent(e)
+	})
+
+	// Passamos o EventBus para o Adapter (que logo logo injetará no act)
+	adapter := engine.NewActAdapter(bus)
+
+	// Escuta do Stdin
 	scanner := bufio.NewScanner(os.Stdin)
 
-	// O Go fica em um loop infinito esperando comandos no stdin
 	for scanner.Scan() {
 		line := scanner.Bytes()
-		
+
 		var req RPCRequest
 		if err := json.Unmarshal(line, &req); err != nil {
-			sendError(-1, fmt.Sprintf("Erro de parse: %v", err))
+			dispatcher.SendError(-1, "Erro de parse do JSON-RPC")
 			continue
 		}
 
-		// Roteamento de métodos
+		// Roteamento
 		switch req.Method {
 		case "plan":
 			workflows, err := adapter.Plan(req.Params.Workdir)
 			if err != nil {
-				sendError(req.ID, err.Error())
+				dispatcher.SendError(req.ID, err.Error())
 			} else {
-				sendResult(req.ID, workflows)
+				dispatcher.SendResult(req.ID, workflows)
 			}
+		case "run":
+			go func(reqID int, reqData RPCRequest) {
+				opts := engine.RunOptions{
+					RunID:    "run-12345",
+					Event:    "push",
+					Workdir:  reqData.Params.Workdir,
+					EventBus: bus,
+				}
+				
+				// Aqui usar um SessionManager, simplificar primeiro com context background
+				err := adapter.Run(context.Background(), opts)
+				if err != nil {
+					dispatcher.SendError(reqID, err.Error())
+				} else {
+					dispatcher.SendResult(reqID, map[string]string{"status": "completed"})
+				}
+			}(req.ID, req)
 		default:
-			sendError(req.ID, fmt.Sprintf("Método '%s' não encontrado", req.Method))
+			dispatcher.SendError(req.ID, "Método não encontrado")
 		}
 	}
-
-	if err := scanner.Err(); err != nil {
-		fmt.Fprintf(os.Stderr, "Erro lendo stdin: %v\n", err)
-	}
-}
-
-func sendResult(id int, result any) {
-	resp := RPCResponse{JSONRPC: "2.0", Result: result, ID: id}
-	out, _ := json.Marshal(resp)
-	fmt.Println(string(out)) // Escreve como linha única no stdout
-}
-
-func sendError(id int, errStr string) {
-	resp := RPCResponse{JSONRPC: "2.0", Error: errStr, ID: id}
-	out, _ := json.Marshal(resp)
-	fmt.Println(string(out)) // Escreve como linha única no stdout
 }
