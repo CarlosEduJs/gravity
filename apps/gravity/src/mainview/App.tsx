@@ -10,6 +10,7 @@ function App() {
 	
 	const [logs, setLogs] = useState<{id: string, text: string, type: string}[]>([]);
 	const [isRunning, setIsRunning] = useState(false);
+	const [currentRunId, setCurrentRunId] = useState<string | null>(null);
 	
 	const logsEndRef = useRef<HTMLDivElement>(null);
 
@@ -26,6 +27,7 @@ function App() {
 					type: "log"
 				}]);
 			} else if (data.type === "run.started") {
+				setCurrentRunId(data.runId);
 				setLogs((prev) => [...prev, {
 					id: data.id,
 					text: `RUN STARTED (Job: ${data.payload.event || 'all'})`,
@@ -38,6 +40,7 @@ function App() {
 					type: "system"
 				}]);
 				setIsRunning(false);
+				setCurrentRunId(null);
 			}
 		};
 
@@ -90,6 +93,19 @@ function App() {
 		} catch (e: unknown) {
 			setError(e instanceof Error ? e.message : String(e));
 			setIsRunning(false);
+		}
+	};
+
+	const stopJob = async () => {
+		if (!currentRunId) return;
+		try {
+			await fetch("http://localhost:5174/stop", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ runId: currentRunId }) 
+			});
+		} catch (e: unknown) {
+			setError(e instanceof Error ? e.message : String(e));
 		}
 	};
 
@@ -168,10 +184,18 @@ function App() {
 							<span className="ml-2 text-sm font-medium text-gray-400 font-mono">gravity-terminal</span>
 						</div>
 						{isRunning && (
-							<span className="flex h-3 w-3 relative">
-								<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-								<span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
-							</span>
+							<div className="flex items-center gap-4">
+								<Button 
+									onClick={stopJob} 
+									variant="destructive" 
+								>
+									Stop
+								</Button>
+								<span className="flex h-3 w-3 relative">
+									<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+									<span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+								</span>
+							</div>
 						)}
 					</div>
 					

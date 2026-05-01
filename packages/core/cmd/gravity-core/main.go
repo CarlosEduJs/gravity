@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"g-core/internal/engine"
 	"g-core/internal/eventbus"
@@ -18,6 +20,7 @@ type RPCRequest struct {
 	Params  struct {
 		Workdir string `json:"workdir"`
 		Job     string `json:"job"`
+		RunID   string `json:"runId"`
 	} `json:"params"`
 	ID int `json:"id"`
 }
@@ -86,10 +89,9 @@ func main() {
 		dispatcher.SendEvent(e)
 	})
 
-	// Passamos o EventBus para o Adapter (que logo logo injetará no act)
-	adapter := engine.NewActAdapter(bus)
+	sessions := engine.NewSessionManager()
+	adapter := engine.NewActAdapter(bus, sessions)
 
-	// Escuta do Stdin
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for scanner.Scan() {
@@ -112,22 +114,40 @@ func main() {
 			}
 		case "run":
 			go func(reqID int, reqData RPCRequest) {
+				runID := reqData.Params.RunID
+				if runID == "" {
+					runID = fmt.Sprintf("run-%d", time.Now().UnixNano())
+				}
+
 				opts := engine.RunOptions{
-					RunID:    "run-12345",
+					RunID:    runID,
 					Event:    "push",
 					Job:      reqData.Params.Job,
 					Workdir:  reqData.Params.Workdir,
 					EventBus: bus,
 				}
 				
-				// Aqui usar um SessionManager, simplificar primeiro com context background
 				err := adapter.Run(context.Background(), opts)
 				if err != nil {
 					dispatcher.SendError(reqID, err.Error())
 				} else {
-					dispatcher.SendResult(reqID, map[string]string{"status": "completed"})
+					dispatcher.SendResult(reqID, map[string]string{"status": "completed", "runId": runID})
 				}
 			}(req.ID, req)
+			
+		case "stop":
+			runID := req.Params.RunID
+			if runID == "" {
+				dispatcher.SendError(req.ID, "runId é obrigatório para parar uma execução")
+				continue
+			}
+			
+			stopped := sessions.Cancel(runID)
+			if stopped {
+				dispatcher.SendResult(req.ID, map[string]bool{"stopped": true})
+			} else {
+				dispatcher.SendError(req.ID, fmt.Sprintf("Nenhuma execução ativa encontrada para runId: %s", runID))
+			}
 		default:
 			dispatcher.SendError(req.ID, "Método não encontrado")
 		}

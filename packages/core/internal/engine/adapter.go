@@ -13,11 +13,15 @@ import (
 
 // ActAdapter implementa a interface Engine utilizando o nektos/act
 type ActAdapter struct{
-	bus eventbus.Bus
+	bus      eventbus.Bus
+	sessions *SessionManager
 }
 
-func NewActAdapter(bus eventbus.Bus) *ActAdapter {
-	return &ActAdapter{bus: bus}
+func NewActAdapter(bus eventbus.Bus, sessions *SessionManager) *ActAdapter {
+	return &ActAdapter{
+		bus:      bus,
+		sessions: sessions,
+	}
 }
 
 // Plan lê o diretório de trabalho e extrai os workflows e seus jobs
@@ -107,8 +111,12 @@ func (a *ActAdapter) Run(ctx context.Context, opts RunOptions) error {
 		return fmt.Errorf("falha ao instanciar runner: %w", err)
 	}
 
+	cancellableCtx, cancel := context.WithCancel(ctx)
+	a.sessions.Register(opts.RunID, cancel)
+	defer a.sessions.Deregister(opts.RunID)
+
 	factory := &GravityLoggerFactory{bus: a.bus, runID: opts.RunID}
-	ctx = runner.WithJobLoggerFactory(ctx, factory)
+	runCtx := runner.WithJobLoggerFactory(cancellableCtx, factory)
 
 	executor := r.NewPlanExecutor(plan)
 
@@ -120,7 +128,7 @@ func (a *ActAdapter) Run(ctx context.Context, opts RunOptions) error {
 		Payload:   eventbus.RunStartedPayload{Job: opts.Job, Event: opts.Event},
 	})
 
-	err = executor(ctx)
+	err = executor(runCtx)
 
 	a.bus.Publish(eventbus.Event{
 		ID:        "end-" + opts.RunID,

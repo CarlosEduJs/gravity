@@ -125,16 +125,20 @@ Bun.serve({
 		    });
 		}
 
-		if ((url.pathname === "/plan" || url.pathname === "/run") && req.method === "POST") {
+		if ((url.pathname === "/plan" || url.pathname === "/run" || url.pathname === "/stop") && req.method === "POST") {
 			try {
 				const body = await req.json();
 				const requestId = Math.floor(Math.random() * 1000000);
 				const absoluteWorkdir = resolve(process.cwd(), body.workdir || ".");
 
+				const params: Record<string, string> = { workdir: absoluteWorkdir };
+				if (body.job) params.job = body.job;
+				if (body.runId) params.runId = body.runId;
+
 				const rpcReq = {
 					jsonrpc: "2.0",
-					method: url.pathname.replace("/", ""), // "plan" ou "run"
-					params: { workdir: absoluteWorkdir, job: body.job },
+					method: url.pathname.replace("/", ""), // "plan", "run" ou "stop"
+					params: params,
 					id: requestId,
 				};
 
