@@ -1,0 +1,18 @@
+# js
+node_modules/
+**/node_modules/
+
+.git/
+
+apps/gravity/build/
+apps/gravity/bin/
+apps/gravity/dist/
+packages/core/bin/
+
+bun.lockb
+.npm/
+.bun/
+.yarn/
+
+.env
+.env.*
