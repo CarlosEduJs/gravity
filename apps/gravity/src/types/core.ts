@@ -27,7 +27,7 @@ export interface RunStartedPayload {
 }
 
 export interface RunFinishedPayload {
-	success: boolean
+	status: "success" | "error" | "canceled"
 }
 
 export interface JobStartedPayload {

@@ -32,7 +32,7 @@ type RunStartedPayload struct {
 func (RunStartedPayload) isPayload() {}
 
 type RunFinishedPayload struct {
-	Success bool `json:"success"`
+	Status string `json:"status"` // "success", "error", "canceled"
 }
 func (RunFinishedPayload) isPayload() {}
 

@@ -34,9 +34,16 @@ function App() {
 					type: "system"
 				}]);
 			} else if (data.type === "run.finished") {
+				const statusMap = {
+					success: "RUN SUCCESSFUL",
+					canceled: "RUN CANCELED",
+					error: "RUN FAILED"
+				};
+				const statusText = statusMap[data.payload.status] || `RUN FINISHED (${data.payload.status})`;
+
 				setLogs((prev) => [...prev, {
 					id: data.id,
-					text: `RUN FINISHED (Success: ${data.payload.success})`,
+					text: statusText,
 					type: "system"
 				}]);
 				setIsRunning(false);

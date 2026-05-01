@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"g-core/internal/eventbus"
 	"path/filepath"
@@ -129,13 +130,22 @@ func (a *ActAdapter) Run(ctx context.Context, opts RunOptions) error {
 	})
 
 	err = executor(runCtx)
+	
+	status := "success"
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			status = "canceled"
+		} else {
+			status = "error"
+		}
+	}
 
 	a.bus.Publish(eventbus.Event{
 		ID:        "end-" + opts.RunID,
 		RunID:     opts.RunID,
 		Type:      eventbus.EventRunFinished,
 		Timestamp: time.Now(),
-		Payload:   eventbus.RunFinishedPayload{Success: err == nil},
+		Payload:   eventbus.RunFinishedPayload{Status: status},
 	})
 
 	return err
