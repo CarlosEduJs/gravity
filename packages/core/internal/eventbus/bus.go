@@ -21,7 +21,9 @@ type Payload interface {
 }
 
 type LogPayload struct {
-    Message string `json:"message"`
+	JobID   string `json:"jobId,omitempty"`
+	StepID  string `json:"stepId,omitempty"`
+	Message string `json:"message"`
 }
 func (LogPayload) isPayload() {}
 
@@ -35,6 +37,30 @@ type RunFinishedPayload struct {
 	Status string `json:"status"` // "success", "error", "canceled"
 }
 func (RunFinishedPayload) isPayload() {}
+
+type JobStartedPayload struct {
+	JobID string `json:"jobId"`
+	Name  string `json:"name"`
+}
+func (JobStartedPayload) isPayload() {}
+
+type JobFinishedPayload struct {
+	JobID  string `json:"jobId"`
+	Status string `json:"status"` // "success", "failure"
+}
+func (JobFinishedPayload) isPayload() {}
+
+type StepStartedPayload struct {
+	StepID string `json:"stepId"`
+	Name   string `json:"name"`
+}
+func (StepStartedPayload) isPayload() {}
+
+type StepFinishedPayload struct {
+	StepID string `json:"stepId"`
+	Status string `json:"status"` // "success", "failure"
+}
+func (StepFinishedPayload) isPayload() {}
 
 type Event struct {
 	ID        string    `json:"id"`

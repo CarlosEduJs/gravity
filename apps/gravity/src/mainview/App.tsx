@@ -23,8 +23,32 @@ function App() {
 			if (data.type === "log.output") {
 				setLogs((prev) => [...prev, {
 					id: data.id,
-					text: data.payload.message,
-					type: "log"
+					text: `      ${data.payload.message}`,
+					type: "log.output"
+				}]);
+			} else if (data.type === "job.started") {
+				setLogs((prev) => [...prev, {
+					id: data.id,
+					text: `▶ JOB: ${data.payload.name}`,
+					type: "job.started"
+				}]);
+			} else if (data.type === "job.finished") {
+				setLogs((prev) => [...prev, {
+					id: data.id,
+					text: `■ JOB FINISHED (Status: ${data.payload.status})`,
+					type: "job.finished"
+				}]);
+			} else if (data.type === "step.started") {
+				setLogs((prev) => [...prev, {
+					id: data.id,
+					text: `   ▶ STEP: ${data.payload.name}`,
+					type: "step.started"
+				}]);
+			} else if (data.type === "step.finished") {
+				setLogs((prev) => [...prev, {
+					id: data.id,
+					text: `   ■ STEP FINISHED (Status: ${data.payload.status})`,
+					type: "step.finished"
 				}]);
 			} else if (data.type === "run.started") {
 				setCurrentRunId(data.runId);
@@ -210,11 +234,25 @@ function App() {
 						{logs.length === 0 ? (
 							<p className="italic">Waiting for execution...</p>
 						) : (
-							logs.map((log) => (
-								<div key={log.id} className={`${log.type === 'system' ? 'text-indigo-400  my-2' : 'text-accent'}`}>
-									{log.text}
-								</div>
-							))
+							logs.map((log) => {
+								let color = "text-gray-300";
+								if (log.type === "system") color = "text-indigo-400 font-bold my-2";
+								else if (log.type.includes("started")) color = "text-blue-400 font-semibold mt-2";
+								else if (log.type.includes("finished")) color = "text-green-400 font-semibold mb-2";
+								
+								if (log.text.includes("CANCELED") || log.text.includes("FAILED") || log.text.includes("failure") || log.text.includes("ERROR:")) {
+									color = "text-red-400 font-semibold";
+								}
+
+								return (
+									<div 
+										key={log.id} 
+										className={`whitespace-pre-wrap ${color}`}
+									>
+										{log.text}
+									</div>
+								);
+							})
 						)}
 						<div ref={logsEndRef} />
 					</div>
