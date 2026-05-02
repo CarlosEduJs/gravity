@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import type { Workflow, GravityEvent, Job } from "../types/core";
+import type { Workflow, Job } from "../types/core";
+import { gravity } from "../lib/gravityClient";
 
 import { Button } from "@gravity/ui/components/button";
 
@@ -15,11 +16,7 @@ function App() {
 	const logsEndRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
-		const evtSource = new EventSource("http://localhost:5174/events");
-		
-		evtSource.onmessage = (event) => {
-			const data = JSON.parse(event.data) as GravityEvent;
-			
+		const unsubscribe = gravity.subscribe((data) => {
 			if (data.type === "log.output") {
 				setLogs((prev) => [...prev, {
 					id: data.id,
@@ -73,11 +70,9 @@ function App() {
 				setIsRunning(false);
 				setCurrentRunId(null);
 			}
-		};
+		});
 
-		return () => {
-			evtSource.close();
-		};
+		return () => unsubscribe();
 	}, []);
 
 	useEffect(() => {
@@ -91,18 +86,8 @@ function App() {
 		setError(null);
 		
 		try {
-			const res = await fetch("http://localhost:5174/plan", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ workdir: "../../../../../../" }) 
-			});
-
-			const data = await res.json();
-			if (data.error) {
-				setError(data.error);
-			} else {
-				setWorkflows(data.result);
-			}
+			const result = await gravity.plan("../../../../../../");
+			setWorkflows(result);
 		} catch (e: unknown) {
 			setError(e instanceof Error ? e.message : String(e));
 		} finally {
@@ -116,10 +101,9 @@ function App() {
 		setError(null);
 		
 		try {
-			fetch("http://localhost:5174/run", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ workdir: "../../../../../../", job: jobId }) 
+			gravity.runJob("../../../../../../", jobId).catch(e => {
+				setError(e instanceof Error ? e.message : String(e));
+				setIsRunning(false);
 			});
 		} catch (e: unknown) {
 			setError(e instanceof Error ? e.message : String(e));
@@ -130,11 +114,7 @@ function App() {
 	const stopJob = async () => {
 		if (!currentRunId) return;
 		try {
-			await fetch("http://localhost:5174/stop", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ runId: currentRunId }) 
-			});
+			await gravity.stopJob(currentRunId);
 		} catch (e: unknown) {
 			setError(e instanceof Error ? e.message : String(e));
 		}
