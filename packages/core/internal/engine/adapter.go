@@ -8,20 +8,69 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/nektos/act/pkg/common"
 	"github.com/nektos/act/pkg/model"
 	"github.com/nektos/act/pkg/runner"
 )
 
+type workflowPlanner interface {
+	PlanEvent(eventName string) (*model.Plan, error)
+	PlanJob(jobName string) (*model.Plan, error)
+	PlanAll() (*model.Plan, error)
+}
+
+type workflowPlannerFactory func(path string) (workflowPlanner, error)
+
+type runnerRunner interface {
+	NewPlanExecutor(plan *model.Plan) common.Executor
+}
+
+type runnerFactory func(config *runner.Config) (runnerRunner, error)
+
+type actRunner struct {
+	runner runner.Runner
+}
+
+func (a *actRunner) NewPlanExecutor(plan *model.Plan) common.Executor {
+	return a.runner.NewPlanExecutor(plan)
+}
+
+func defaultWorkflowPlannerFactory(path string) (workflowPlanner, error) {
+	return model.NewWorkflowPlanner(path, false, false)
+}
+
+func defaultRunnerFactory(config *runner.Config) (runnerRunner, error) {
+	r, err := runner.New(config)
+	if err != nil {
+		return nil, err
+	}
+	return &actRunner{runner: r}, nil
+}
+
 // ActAdapter implementa a interface Engine utilizando o nektos/act
-type ActAdapter struct{
-	bus      eventbus.Bus
-	sessions *SessionManager
+type ActAdapter struct {
+	bus            eventbus.Bus
+	sessions       *SessionManager
+	plannerFactory workflowPlannerFactory
+	runnerFactory  runnerFactory
 }
 
 func NewActAdapter(bus eventbus.Bus, sessions *SessionManager) *ActAdapter {
+	return NewActAdapterWithFactories(bus, sessions, nil, nil)
+}
+
+func NewActAdapterWithFactories(bus eventbus.Bus, sessions *SessionManager, plannerFactory workflowPlannerFactory, runnerFactory runnerFactory) *ActAdapter {
+	if plannerFactory == nil {
+		plannerFactory = defaultWorkflowPlannerFactory
+	}
+	if runnerFactory == nil {
+		runnerFactory = defaultRunnerFactory
+	}
 	return &ActAdapter{
-		bus:      bus,
-		sessions: sessions,
+		bus:            bus,
+		sessions:       sessions,
+		plannerFactory: plannerFactory,
+		runnerFactory:  runnerFactory,
 	}
 }
 
@@ -29,8 +78,7 @@ func NewActAdapter(bus eventbus.Bus, sessions *SessionManager) *ActAdapter {
 func (a *ActAdapter) Plan(workdir string) ([]Workflow, error) {
 	workflowPath := filepath.Join(workdir, ".github", "workflows")
 	
-	// Utiliza o NewWorkflowPlanner: path, noWorkflowRecurse, strict
-	wp, err := model.NewWorkflowPlanner(workflowPath, false, false)
+	wp, err := a.plannerFactory(workflowPath)
 	if err != nil {
 		return nil, fmt.Errorf("falha ao criar WorkflowPlanner: %w", err)
 	}
@@ -76,7 +124,7 @@ func (a *ActAdapter) Plan(workdir string) ([]Workflow, error) {
 func (a *ActAdapter) Run(ctx context.Context, opts RunOptions) error {
 	workflowPath := filepath.Join(opts.Workdir, ".github", "workflows")
 	
-	wp, err := model.NewWorkflowPlanner(workflowPath, false, false)
+	wp, err := a.plannerFactory(workflowPath)
 	if err != nil {
 		return fmt.Errorf("falha ao criar WorkflowPlanner: %w", err)
 	}
@@ -107,7 +155,7 @@ func (a *ActAdapter) Run(ctx context.Context, opts RunOptions) error {
 		},
 	}
 
-	r, err := runner.New(runnerConfig)
+	r, err := a.runnerFactory(runnerConfig)
 	if err != nil {
 		return fmt.Errorf("falha ao instanciar runner: %w", err)
 	}
