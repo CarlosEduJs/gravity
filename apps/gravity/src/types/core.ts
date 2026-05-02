@@ -87,3 +87,10 @@ export interface RPCNotification<T = unknown> {
 	method: string
 	params: T
 }
+
+export interface Workspace {
+	id: string
+	name: string
+	path: string
+	lastOpenedAt: string
+}

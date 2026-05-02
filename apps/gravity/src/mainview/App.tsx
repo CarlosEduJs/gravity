@@ -8,12 +8,25 @@ function App() {
 	const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
 	const [loading, setLoading] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [workspacePath, setWorkspacePath] = useState<string>("");
+	const [workspaceName, setWorkspaceName] = useState<string>("");
 	
 	const [logs, setLogs] = useState<{id: string, text: string, type: string}[]>([]);
 	const [isRunning, setIsRunning] = useState(false);
 	const [currentRunId, setCurrentRunId] = useState<string | null>(null);
 	
 	const logsEndRef = useRef<HTMLDivElement>(null);
+
+	useEffect(() => {
+		gravity.getWorkspace().then((workspace) => {
+			if (workspace?.path) {
+				setWorkspacePath(workspace.path);
+				setWorkspaceName(workspace.name || workspace.path);
+			}
+		}).catch((e: unknown) => {
+			setError(e instanceof Error ? e.message : String(e));
+		});
+	}, []);
 
 	useEffect(() => {
 		const unsubscribe = gravity.subscribe((data) => {
@@ -86,7 +99,7 @@ function App() {
 		setError(null);
 		
 		try {
-			const result = await gravity.plan("../../../../../../");
+			const result = await gravity.plan(workspacePath || undefined);
 			setWorkflows(result);
 		} catch (e: unknown) {
 			setError(e instanceof Error ? e.message : String(e));
@@ -101,13 +114,26 @@ function App() {
 		setError(null);
 		
 		try {
-			gravity.runJob("../../../../../../", jobId).catch(e => {
+			gravity.runJob(workspacePath || undefined, jobId).catch(e => {
 				setError(e instanceof Error ? e.message : String(e));
 				setIsRunning(false);
 			});
 		} catch (e: unknown) {
 			setError(e instanceof Error ? e.message : String(e));
 			setIsRunning(false);
+		}
+	};
+
+	const selectWorkspace = async () => {
+		try {
+			const workspace = await gravity.pickWorkspace();
+			if (!workspace) return;
+			setWorkspacePath(workspace.path);
+			setWorkspaceName(workspace.name || workspace.path);
+			setWorkflows(null);
+			setLogs([]);
+		} catch (e: unknown) {
+			setError(e instanceof Error ? e.message : String(e));
 		}
 	};
 
@@ -131,6 +157,20 @@ function App() {
 						Local Runtime Dashboard
 					</p>
 
+					<div className="border rounded-xl p-4 mb-6">
+						<div className="flex items-center justify-between gap-4">
+							<div>
+								<p className="text-xs uppercase tracking-wide">Workspace</p>
+								<p className="text-sm font-mono">
+									{workspacePath ? workspaceName : "Nenhum workspace selecionado"}
+								</p>
+							</div>
+							<Button onClick={selectWorkspace} variant={"default"}>
+								Selecionar
+							</Button>
+						</div>
+					</div>
+
 					<div className="border rounded-xl p-6 ">
 						<div className="flex items-center justify-between mb-6">
 							<div>
@@ -138,7 +178,7 @@ function App() {
 							</div>
 							<Button
 								onClick={loadWorkflows}
-								disabled={loading || isRunning}
+								disabled={loading || isRunning || !workspacePath}
 								variant={"default"}
 							>
 								{loading ? "Planejando..." : "Carregar Planos"}

@@ -1,12 +1,122 @@
-import { BrowserWindow, Updater } from "electrobun/bun";
+import { BrowserWindow, Updater, Utils } from "electrobun/bun";
 import { spawn } from "bun";
-import { join, resolve } from "path";
+import { createHash } from "crypto";
+import { join, resolve, basename } from "path";
 import { existsSync } from "fs";
+import { homedir } from "os";
+import { mkdir, readFile, writeFile } from "fs/promises";
 
 import type { GravityEvent, RPCResponse, RPCNotification } from "../types/core";
 
 const DEV_SERVER_PORT = 5173;
 const DEV_SERVER_URL = `http://localhost:${DEV_SERVER_PORT}`;
+
+type Workspace = {
+	id: string;
+	name: string;
+	path: string;
+	lastOpenedAt: string;
+};
+
+type WorkspaceIndex = {
+	lastActive: string | null;
+	items: Workspace[];
+};
+
+const gravityHome = join(homedir(), ".gravity");
+const workspaceIndexPath = join(gravityHome, "workspaces.json");
+
+async function ensureGravityHome() {
+	await mkdir(gravityHome, { recursive: true });
+}
+
+function workspaceIdFromPath(path: string) {
+	return createHash("sha256").update(path).digest("hex").slice(0, 12);
+}
+
+async function loadWorkspaceIndex(): Promise<WorkspaceIndex> {
+	await ensureGravityHome();
+	try {
+		const contents = await readFile(workspaceIndexPath, "utf-8");
+		const parsed = JSON.parse(contents) as WorkspaceIndex;
+		return {
+			lastActive: parsed.lastActive ?? null,
+			items: parsed.items ?? [],
+		};
+	} catch {
+		return { lastActive: null, items: [] };
+	}
+}
+
+async function saveWorkspaceIndex(index: WorkspaceIndex) {
+	await ensureGravityHome();
+	await writeFile(workspaceIndexPath, JSON.stringify(index, null, 2));
+}
+
+async function ensureProjectGravityDir(workspacePath: string) {
+	const gravityDir = join(workspacePath, ".gravity");
+	await mkdir(gravityDir, { recursive: true });
+	const configPath = join(gravityDir, "config.json");
+	const statePath = join(gravityDir, "state.json");
+	if (!existsSync(configPath)) {
+		await writeFile(configPath, JSON.stringify({}, null, 2));
+	}
+	if (!existsSync(statePath)) {
+		await writeFile(statePath, JSON.stringify({}, null, 2));
+	}
+}
+
+async function ensureGitignore(workspacePath: string) {
+	const gitignorePath = join(workspacePath, ".gitignore");
+	const entry = ".gravity/";
+	if (!existsSync(gitignorePath)) {
+		await writeFile(gitignorePath, `${entry}\n`);
+		return;
+	}
+	const contents = await readFile(gitignorePath, "utf-8");
+	if (!contents.split(/\r?\n/).includes(entry)) {
+		const suffix = contents.endsWith("\n") ? "" : "\n";
+		await writeFile(gitignorePath, `${contents}${suffix}${entry}\n`);
+	}
+}
+
+async function setActiveWorkspace(path: string) {
+	const resolvedPath = resolve(path);
+	const index = await loadWorkspaceIndex();
+	const id = workspaceIdFromPath(resolvedPath);
+	const now = new Date().toISOString();
+	const existing = index.items.find((item) => item.id === id);
+	const workspace: Workspace = {
+		id,
+		name: existing?.name ?? basename(resolvedPath),
+		path: resolvedPath,
+		lastOpenedAt: now,
+	};
+
+	const nextItems = existing
+		? index.items.map((item) => (item.id === id ? workspace : item))
+		: [workspace, ...index.items];
+
+	const nextIndex: WorkspaceIndex = {
+		lastActive: id,
+		items: nextItems,
+	};
+
+	await ensureProjectGravityDir(resolvedPath);
+	await ensureGitignore(resolvedPath);
+	await saveWorkspaceIndex(nextIndex);
+
+	return workspace;
+}
+
+async function getActiveWorkspace(): Promise<Workspace | null> {
+	const index = await loadWorkspaceIndex();
+	if (!index.lastActive) return null;
+	const workspace = index.items.find((item) => item.id === index.lastActive) ?? null;
+	if (!workspace) return null;
+	if (!existsSync(workspace.path)) return null;
+	return setActiveWorkspace(workspace.path);
+}
 
 // --- GRAVITY CORE BRIDGE ---
 function findCoreBinary() {
@@ -86,6 +196,7 @@ async function listenToCore() {
 listenToCore();
 
 const bridgePort = 5174;
+let currentWorkspace: Workspace | null = await getActiveWorkspace();
 Bun.serve({
 	port: bridgePort,
 	async fetch(req) {
@@ -99,6 +210,68 @@ Bun.serve({
 					"Access-Control-Allow-Headers": "Content-Type",
 				},
 			});
+		}
+
+		if (url.pathname === "/workspace" && req.method === "GET") {
+			if (!currentWorkspace) {
+				return Response.json(
+					{ result: null },
+					{ headers: { "Access-Control-Allow-Origin": "*" } },
+				);
+			}
+			return Response.json(
+				{ result: currentWorkspace },
+				{ headers: { "Access-Control-Allow-Origin": "*" } },
+			);
+		}
+
+		if (url.pathname === "/workspace" && req.method === "POST") {
+			try {
+				const body = await req.json();
+				if (!body?.path || typeof body.path !== "string") {
+					return Response.json(
+						{ error: "path é obrigatório" },
+						{ status: 400, headers: { "Access-Control-Allow-Origin": "*" } },
+					);
+				}
+				currentWorkspace = await setActiveWorkspace(body.path);
+				return Response.json(
+					{ result: currentWorkspace },
+					{ headers: { "Access-Control-Allow-Origin": "*" } },
+				);
+			} catch (e: unknown) {
+				return Response.json(
+					{ error: e instanceof Error ? e.message : String(e) },
+					{ status: 500, headers: { "Access-Control-Allow-Origin": "*" } },
+				);
+			}
+		}
+
+		if (url.pathname === "/workspace/pick" && req.method === "POST") {
+			try {
+				const [selectedPath] = await Utils.openFileDialog({
+					startingFolder: currentWorkspace?.path ?? "~/",
+					canChooseFiles: false,
+					canChooseDirectory: true,
+					allowsMultipleSelection: false,
+				});
+				if (!selectedPath) {
+					return Response.json(
+						{ result: null },
+						{ headers: { "Access-Control-Allow-Origin": "*" } },
+					);
+				}
+				currentWorkspace = await setActiveWorkspace(selectedPath);
+				return Response.json(
+					{ result: currentWorkspace },
+					{ headers: { "Access-Control-Allow-Origin": "*" } },
+				);
+			} catch (e: unknown) {
+				return Response.json(
+					{ error: e instanceof Error ? e.message : String(e) },
+					{ status: 500, headers: { "Access-Control-Allow-Origin": "*" } },
+				);
+			}
 		}
 		
 		// Endpoint Server-Sent Events para os Logs e Status
@@ -129,7 +302,15 @@ Bun.serve({
 			try {
 				const body = await req.json();
 				const requestId = Math.floor(Math.random() * 1000000);
-				const absoluteWorkdir = resolve(process.cwd(), body.workdir || ".");
+				const workspacePath = body.workdir || currentWorkspace?.path;
+				if (!workspacePath) {
+					return Response.json(
+						{ error: "workspace não selecionado" },
+						{ status: 400, headers: { "Access-Control-Allow-Origin": "*" } },
+					);
+				}
+				const absoluteWorkdir = resolve(workspacePath);
+				currentWorkspace = await setActiveWorkspace(absoluteWorkdir);
 
 				const params: Record<string, string> = { workdir: absoluteWorkdir };
 				if (body.job) params.job = body.job;
