@@ -16,7 +16,7 @@
     "utils": "@gravity/ui/lib/utils",
     "ui": "@gravity/ui/components",
     "lib": "@/lib",
-    "hooks": "@/hooks"
+    "hooks": "@gravity/ui/hooks"
   },
   "menuColor": "default",
   "menuAccent": "bold",
