@@ -5,7 +5,7 @@ import { Home03Icon, Activity03Icon, Clock04Icon, Setting07Icon } from "@hugeico
 
 import { routes } from "./routes";
 import { useWorkspace } from "../hooks/useWorkspace";
-import { WorkspaceSwitcher, WorkspaceSwitcherNew} from "../features/workspace/WorkspaceSwitcher";
+import { WorkspaceSwitcher } from "../features/workspace/WorkspaceSwitcher";
 
 import {
   Sidebar,
@@ -21,6 +21,7 @@ import {
   SidebarProvider,
   SidebarInset,
   SidebarTrigger,
+  useSidebar,
 } from "@gravity/ui/components/sidebar";
 import { ThemeProvider } from "../components/theme-provider";
 
@@ -28,7 +29,6 @@ const navIcons = {
   "/": Home03Icon,
   "/runs": Activity03Icon,
   "/history": Clock04Icon,
-  "/settings": Setting07Icon,
 } as const;
 
 export default function AppShell() {
@@ -37,7 +37,6 @@ export default function AppShell() {
   const navigate = useNavigate();
 
   const workspaceRoutes = useMemo(() => routes.filter((route) => route.nav === "workspace"), []);
-  const appRoutes = useMemo(() => routes.filter((route) => route.nav === "app"), []);
 
   const workspaceName = activeWorkspace?.name ?? "";
   const workspacePath = activeWorkspace?.path ?? "";
@@ -57,7 +56,7 @@ export default function AppShell() {
       <SidebarProvider>
         <Sidebar collapsible="icon" variant="inset" className="bg-background">
           <SidebarHeader className="flex-row items-center justify-between gap-4">
-            <WorkspaceSwitcherNew name={workspaceName} path={workspacePath} onPick={handlePick} />
+            <WorkspaceSwitcher name={workspaceName} path={workspacePath} onPick={handlePick} />
           </SidebarHeader>
           <SidebarContent>
             <SidebarGroup>
@@ -87,38 +86,10 @@ export default function AppShell() {
                 </SidebarMenu>
               </SidebarGroupContent>
             </SidebarGroup>
-            {appRoutes.length > 0 && (
-              <SidebarGroup>
-                <SidebarGroupLabel>App</SidebarGroupLabel>
-                <SidebarGroupContent>
-                  <SidebarMenu>
-                    {appRoutes.map((route) => {
-					 const Icon = navIcons[route.path as keyof typeof navIcons];
-					 return(
-                      <SidebarMenuItem key={route.path}>
-                        <SidebarMenuButton
-                          render={(props) => (
-                            <NavLink
-                              to={route.path}
-                              data-active={currentPath === route.path || undefined}
-                              {...props}
-                            >
-							  {Icon && <HugeiconsIcon icon={Icon} data-icon="inline-start" />}
-                              <span className="font-medium">{route.label}</span>
-                            </NavLink>
-                          )}
-                          isActive={currentPath === route.path}
-                        />
-                      </SidebarMenuItem>
-                    )})}
-                  </SidebarMenu>
-                </SidebarGroupContent>
-              </SidebarGroup>
-            )}
           </SidebarContent>
           <SidebarFooter>
-			<SidebarTrigger />
-		  </SidebarFooter>
+            <SidebarFooterb currentPath={currentPath} />
+          </SidebarFooter>
         </Sidebar>
         <SidebarInset className="bg-card rounded-2xl">
           <div className="flex min-h-svh flex-1 flex-col py-5">
@@ -129,5 +100,28 @@ export default function AppShell() {
         </SidebarInset>
       </SidebarProvider>
     </ThemeProvider>
+  );
+}
+
+interface WorkspaceSwitcherProps {
+  currentPath?: string;
+}
+
+function SidebarFooterb({ currentPath }: WorkspaceSwitcherProps) {
+  const { open } = useSidebar();
+
+  return (
+    <div className="flex items-center">
+      {open && (
+        <NavLink
+          to={"/settings"}
+          data-active={currentPath === "/settings" ? "true" : undefined}
+          className="flex items-center gap-2 rounded-lg px-1.5 py-0.5 hover:bg-accent-foreground w-fit"
+        >
+          <HugeiconsIcon icon={Setting07Icon} className="size-3.5" data-icon="inline-start" />
+        </NavLink>
+      )}
+      <SidebarTrigger />
+    </div>
   );
 }
