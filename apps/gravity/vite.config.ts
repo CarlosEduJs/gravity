@@ -4,20 +4,20 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-	plugins: [react(), tailwindcss()],
-	root: "src/mainview",
-	resolve: {
-		alias: {
-			"@gravity/ui/styles": path.resolve(__dirname, "../../packages/ui/src/styles"),
-			"@gravity/ui": path.resolve(__dirname, "../../packages/ui/src"),
-		},
-	},
-	build: {
-		outDir: "../../dist",
-		emptyOutDir: true,
-	},
-	server: {
-		port: 5173,
-		strictPort: true,
-	},
+  plugins: [react(), tailwindcss()],
+  root: "src/mainview",
+  resolve: {
+    alias: {
+      "@gravity/ui/styles": path.resolve(__dirname, "../../packages/ui/src/styles"),
+      "@gravity/ui": path.resolve(__dirname, "../../packages/ui/src"),
+    },
+  },
+  build: {
+    outDir: "../../dist",
+    emptyOutDir: true,
+  },
+  server: {
+    port: 5173,
+    strictPort: true,
+  },
 });
