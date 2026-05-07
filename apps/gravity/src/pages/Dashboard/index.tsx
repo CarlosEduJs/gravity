@@ -65,8 +65,8 @@ export default function DashboardPage() {
 	};
 
 	return (
-		<div className="flex h-full flex-col gap-6 p-4 ">
-			<div className="flex items-start justify-between gap-4 bg-red-500">
+		<div className="flex h-full flex-col gap-6">
+			<div className="flex items-start justify-between gap-4">
 				<div>
 					<p className="text-xs text-muted-foreground">Workspace</p>
 					<h1 className="text-lg font-semibold text-foreground">

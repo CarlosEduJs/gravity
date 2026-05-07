@@ -374,6 +374,7 @@ const mainWindow = new BrowserWindow({
 		x: 200,
 		y: 200,
 	},
+	
 });
 
 console.log("Gravity App started!");

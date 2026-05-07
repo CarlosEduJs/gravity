@@ -23,10 +23,9 @@ import {
 	SidebarMenuButton,
 	SidebarMenuItem,
 	SidebarProvider,
-	SidebarSeparator,
 	SidebarInset,
 } from "@gravity/ui/components/sidebar";
-import { Button } from "@gravity/ui/components/button";
+import { ThemeProvider } from "../components/theme-provider";
 
 const navIcons = {
 	"/": Home03Icon,
@@ -62,8 +61,9 @@ export default function AppShell() {
 	const currentPath = location.pathname === "/" ? "/" : location.pathname;
 
 	return (
+		<ThemeProvider defaultTheme="dark">
 		<SidebarProvider>
-			<Sidebar collapsible="icon" variant="inset">
+			<Sidebar collapsible="icon" variant="inset" className="bg-background">
 				<SidebarHeader>
 					<WorkspaceSwitcher
 						name={workspaceName}
@@ -71,7 +71,6 @@ export default function AppShell() {
 						onPick={handlePick}
 					/>
 				</SidebarHeader>
-				<SidebarSeparator />
 				<SidebarContent>
 					<SidebarGroup>
 						<SidebarGroupLabel>Workspace</SidebarGroupLabel>
@@ -130,24 +129,14 @@ export default function AppShell() {
 				</SidebarContent>
 				<SidebarFooter />
 			</Sidebar>
-			<SidebarInset>
-				<div className="flex min-h-svh flex-1 flex-col">
-					<div className="flex items-center justify-between gap-2 px-6 py-4">
-						<div>
-							<p className="text-xs text-muted-foreground">Gravity</p>
-							<h2 className="text-base font-semibold text-foreground">Workspace</h2>
-						</div>
-						<div className="flex items-center gap-2">
-							<Button size="sm" variant="outline" onClick={handlePick}>
-								Change workspace
-							</Button>
-						</div>
-					</div>
+			<SidebarInset className="bg-card rounded-2xl">
+				<div className="flex min-h-svh flex-1 flex-col py-5">
 					<div className="flex-1 px-6 pb-8">
 						<Outlet />
 					</div>
 				</div>
 			</SidebarInset>
 		</SidebarProvider>
+		</ThemeProvider>
 	);
 }

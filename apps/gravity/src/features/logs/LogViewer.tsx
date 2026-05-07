@@ -6,7 +6,7 @@ import type { LogLine } from "./useGravityEvents";
 
 type LogViewerProps = {
 	logs: LogLine[];
-	endRef: RefObject<HTMLDivElement>;
+	endRef: RefObject<HTMLDivElement | null>;
 };
 
 export default function LogViewer({ logs, endRef }: LogViewerProps) {
