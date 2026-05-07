@@ -51,7 +51,7 @@ export default function AppShell() {
   const currentPath = location.pathname === "/" ? "/" : location.pathname;
 
   return (
-    <ThemeProvider defaultTheme="dark">
+    <ThemeProvider defaultTheme="system">
       <SidebarProvider>
         <Sidebar collapsible="icon" variant="inset" className="bg-background">
           <SidebarHeader>
