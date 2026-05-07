@@ -47,9 +47,9 @@ export function WorkspaceSwitcherNew({ name, path, onPick }: WorkspaceSwitcherPr
                   <WorkspaceIdentity name={name} path={path} showName={true} />
                 </div>
               </DropdownMenuGroup>
-              <DropdownMenuItem onClick={onPick}>
+              <Button variant={"outline"} size={"sm"} onClick={onPick}>
                 Pick Workspace <DropdownMenuShortcut>⌘P</DropdownMenuShortcut>
-              </DropdownMenuItem>
+              </Button>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         </DropdownMenuGroup>
