@@ -1,11 +1,11 @@
 import { useMemo } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { HugeiconsIcon } from "@hugeicons/react";
-import { Home03Icon, Activity03Icon, Clock04Icon } from "@hugeicons/core-free-icons";
+import { Home03Icon, Activity03Icon, Clock04Icon, Setting07Icon } from "@hugeicons/core-free-icons";
 
 import { routes } from "./routes";
 import { useWorkspace } from "../hooks/useWorkspace";
-import WorkspaceSwitcher from "../features/workspace/WorkspaceSwitcher";
+import { WorkspaceSwitcher, WorkspaceSwitcherNew} from "../features/workspace/WorkspaceSwitcher";
 
 import {
   Sidebar,
@@ -20,6 +20,7 @@ import {
   SidebarMenuItem,
   SidebarProvider,
   SidebarInset,
+  SidebarTrigger,
 } from "@gravity/ui/components/sidebar";
 import { ThemeProvider } from "../components/theme-provider";
 
@@ -27,6 +28,7 @@ const navIcons = {
   "/": Home03Icon,
   "/runs": Activity03Icon,
   "/history": Clock04Icon,
+  "/settings": Setting07Icon,
 } as const;
 
 export default function AppShell() {
@@ -54,8 +56,8 @@ export default function AppShell() {
     <ThemeProvider defaultTheme="system">
       <SidebarProvider>
         <Sidebar collapsible="icon" variant="inset" className="bg-background">
-          <SidebarHeader>
-            <WorkspaceSwitcher name={workspaceName} path={workspacePath} onPick={handlePick} />
+          <SidebarHeader className="flex-row items-center justify-between gap-4">
+            <WorkspaceSwitcherNew name={workspaceName} path={workspacePath} onPick={handlePick} />
           </SidebarHeader>
           <SidebarContent>
             <SidebarGroup>
@@ -74,7 +76,7 @@ export default function AppShell() {
                               {...props}
                             >
                               {Icon && <HugeiconsIcon icon={Icon} data-icon="inline-start" />}
-                              {route.label}
+                              <span className="font-medium">{route.label}</span>
                             </NavLink>
                           )}
                           isActive={currentPath === route.path}
@@ -90,7 +92,9 @@ export default function AppShell() {
                 <SidebarGroupLabel>App</SidebarGroupLabel>
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {appRoutes.map((route) => (
+                    {appRoutes.map((route) => {
+					 const Icon = navIcons[route.path as keyof typeof navIcons];
+					 return(
                       <SidebarMenuItem key={route.path}>
                         <SidebarMenuButton
                           render={(props) => (
@@ -99,19 +103,22 @@ export default function AppShell() {
                               data-active={currentPath === route.path || undefined}
                               {...props}
                             >
-                              {route.label}
+							  {Icon && <HugeiconsIcon icon={Icon} data-icon="inline-start" />}
+                              <span className="font-medium">{route.label}</span>
                             </NavLink>
                           )}
                           isActive={currentPath === route.path}
                         />
                       </SidebarMenuItem>
-                    ))}
+                    )})}
                   </SidebarMenu>
                 </SidebarGroupContent>
               </SidebarGroup>
             )}
           </SidebarContent>
-          <SidebarFooter />
+          <SidebarFooter>
+			<SidebarTrigger />
+		  </SidebarFooter>
         </Sidebar>
         <SidebarInset className="bg-card rounded-2xl">
           <div className="flex min-h-svh flex-1 flex-col py-5">
