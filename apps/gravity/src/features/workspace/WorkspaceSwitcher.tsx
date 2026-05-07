@@ -32,7 +32,7 @@ export function WorkspaceSwitcherNew({ name, path, onPick }: WorkspaceSwitcherPr
   return (
     <DropdownMenu>
       <DropdownMenuTrigger className="flex items-center gap-1 rounded-lg px-2 py-0.5 w-fit hover:bg-accent-foreground">
-        <WorkspaceIdentity name={name} path={path} open={open} />
+        <WorkspaceIdentity name={name} path={path} showName={open} />
         <HugeiconsIcon icon={ArrowDown01Icon} className={cn("w-5 transition-transform duration-300", !open && "w-3")} />
       </DropdownMenuTrigger>
       <DropdownMenuContent className={"w-52"}>
@@ -44,7 +44,7 @@ export function WorkspaceSwitcherNew({ name, path, onPick }: WorkspaceSwitcherPr
               <DropdownMenuGroup>
                 <DropdownMenuLabel>{path}</DropdownMenuLabel>
                 <div className="flex-col gap-2 px-1.5">
-                  <WorkspaceIdentity name={name} path={path} open={open} />
+                  <WorkspaceIdentity name={name} path={path} showName={true} />
                 </div>
               </DropdownMenuGroup>
               <DropdownMenuItem onClick={onPick}>
@@ -60,17 +60,17 @@ export function WorkspaceSwitcherNew({ name, path, onPick }: WorkspaceSwitcherPr
 
 interface WorkspaceIdentityProps {
   name: string;
+  showName?: boolean;
   path: string;
-  open: boolean;
 }
 
-function WorkspaceIdentity({ name, path, open }: WorkspaceIdentityProps) {
+function WorkspaceIdentity({ name, path, showName }: WorkspaceIdentityProps) {
   return (
     <div className="flex items-center gap-2">
       <div className="w-4 h-4 bg-primary rounded-full flex items-center justify-center text-background text-xs font-medium">
         {name ? name[0].toUpperCase() : "?"}
       </div>
-      {open && <h2 className="font-semibold">{name || path}</h2>}
+      {showName && <h2 className="font-semibold">{name || path}</h2>}
     </div>
   );
 }
