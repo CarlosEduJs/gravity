@@ -23,7 +23,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@gravity/ui/components/sidebar";
-import { ThemeProvider } from "../components/theme-provider";
 
 const navIcons = {
   "/": Home03Icon,
@@ -52,60 +51,58 @@ export default function AppShell() {
   const currentPath = location.pathname === "/" ? "/" : location.pathname;
 
   return (
-    <ThemeProvider defaultTheme="system">
-      <SidebarProvider>
-        <Sidebar collapsible="icon" variant="inset" className="bg-background">
-          <SidebarHeader className="flex-row items-center justify-between gap-4">
-            <WorkspaceSwitcher
-              name={workspaceName}
-              path={workspacePath}
-              onPick={handlePick}
-              onSelect={setActive}
-              workspaces={workspaces}
-            />
-          </SidebarHeader>
-          <SidebarContent>
-            <SidebarGroup>
-              <SidebarGroupLabel>Workspace</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {workspaceRoutes.map((route) => {
-                    const Icon = navIcons[route.path as keyof typeof navIcons];
-                    return (
-                      <SidebarMenuItem key={route.path}>
-                        <SidebarMenuButton
-                          render={(props) => (
-                            <NavLink
-                              to={route.path === "/" ? "." : route.path}
-                              data-active={currentPath === route.path || undefined}
-                              {...props}
-                            >
-                              {Icon && <HugeiconsIcon icon={Icon} data-icon="inline-start" />}
-                              <span className="font-medium">{route.label}</span>
-                            </NavLink>
-                          )}
-                          isActive={currentPath === route.path}
-                        />
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </SidebarContent>
-          <SidebarFooter>
-            <SidebarFooterb currentPath={currentPath} />
-          </SidebarFooter>
-        </Sidebar>
-        <SidebarInset className="bg-card rounded-2xl">
-          <div className="flex min-h-svh flex-1 flex-col py-5">
-            <div className="flex-1 px-6 pb-8">
-              <Outlet />
-            </div>
+    <SidebarProvider>
+      <Sidebar collapsible="icon" variant="inset" className="bg-background">
+        <SidebarHeader className="flex-row items-center justify-between gap-4">
+          <WorkspaceSwitcher
+            name={workspaceName}
+            path={workspacePath}
+            onPick={handlePick}
+            onSelect={setActive}
+            workspaces={workspaces}
+          />
+        </SidebarHeader>
+        <SidebarContent>
+          <SidebarGroup>
+            <SidebarGroupLabel>Workspace</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {workspaceRoutes.map((route) => {
+                  const Icon = navIcons[route.path as keyof typeof navIcons];
+                  return (
+                    <SidebarMenuItem key={route.path}>
+                      <SidebarMenuButton
+                        render={(props) => (
+                          <NavLink
+                            to={route.path === "/" ? "." : route.path}
+                            data-active={currentPath === route.path || undefined}
+                            {...props}
+                          >
+                            {Icon && <HugeiconsIcon icon={Icon} data-icon="inline-start" />}
+                            <span className="font-medium">{route.label}</span>
+                          </NavLink>
+                        )}
+                        isActive={currentPath === route.path}
+                      />
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+        <SidebarFooter>
+          <SidebarFooterb currentPath={currentPath} />
+        </SidebarFooter>
+      </Sidebar>
+      <SidebarInset className="bg-card rounded-2xl">
+        <div className="flex min-h-svh flex-1 flex-col py-5">
+          <div className="flex-1 px-6 pb-8">
+            <Outlet />
           </div>
-        </SidebarInset>
-      </SidebarProvider>
-    </ThemeProvider>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
   );
 }
 
