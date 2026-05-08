@@ -23,6 +23,23 @@ type WorkspaceIndex = {
   items: Workspace[];
 };
 
+type WorkspaceState = {
+  runs?: {
+    runId: string;
+    status: "running" | "success" | "error" | "canceled";
+    startedAt: string;
+    finishedAt: string | null;
+    durationMs: number | null;
+    event?: string;
+    jobId?: string;
+    workflowName?: string;
+    workflowFile?: string;
+  }[];
+  lastWorkflowPlanAt?: string;
+  workflowCount?: number;
+  jobCount?: number;
+};
+
 const gravityHome = join(homedir(), ".gravity");
 const workspaceIndexPath = join(gravityHome, "workspaces.json");
 
@@ -48,6 +65,16 @@ async function loadWorkspaceIndex(): Promise<WorkspaceIndex> {
   }
 }
 
+async function listWorkspaces(): Promise<Workspace[]> {
+  const index = await loadWorkspaceIndex();
+  return [...index.items].sort((a, b) => {
+    const aTime = new Date(a.lastOpenedAt).getTime();
+    const bTime = new Date(b.lastOpenedAt).getTime();
+    if (Number.isNaN(aTime) || Number.isNaN(bTime)) return 0;
+    return bTime - aTime;
+  });
+}
+
 async function saveWorkspaceIndex(index: WorkspaceIndex) {
   await ensureGravityHome();
   await writeFile(workspaceIndexPath, JSON.stringify(index, null, 2));
@@ -62,8 +89,35 @@ async function ensureProjectGravityDir(workspacePath: string) {
     await writeFile(configPath, JSON.stringify({}, null, 2));
   }
   if (!existsSync(statePath)) {
-    await writeFile(statePath, JSON.stringify({}, null, 2));
+    await writeFile(statePath, JSON.stringify({ runs: [] }, null, 2));
   }
+}
+
+async function readWorkspaceState(workspacePath: string): Promise<WorkspaceState> {
+  const statePath = join(workspacePath, ".gravity", "state.json");
+  try {
+    const raw = await readFile(statePath, "utf-8");
+    const parsed = JSON.parse(raw) as WorkspaceState;
+    return {
+      runs: Array.isArray(parsed.runs) ? parsed.runs : [],
+      lastWorkflowPlanAt: parsed.lastWorkflowPlanAt,
+      workflowCount: parsed.workflowCount,
+      jobCount: parsed.jobCount,
+    };
+  } catch {
+    return { runs: [] };
+  }
+}
+
+async function writeWorkspaceState(workspacePath: string, state: WorkspaceState) {
+  const statePath = join(workspacePath, ".gravity", "state.json");
+  const nextState: WorkspaceState = {
+    runs: Array.isArray(state.runs) ? state.runs : [],
+    lastWorkflowPlanAt: state.lastWorkflowPlanAt,
+    workflowCount: state.workflowCount,
+    jobCount: state.jobCount,
+  };
+  await writeFile(statePath, JSON.stringify(nextState, null, 2));
 }
 
 async function ensureGitignore(workspacePath: string) {
@@ -225,6 +279,61 @@ Bun.serve({
         { result: currentWorkspace },
         { headers: { "Access-Control-Allow-Origin": "*" } },
       );
+    }
+
+    if (url.pathname === "/workspaces" && req.method === "GET") {
+      try {
+        const items = await listWorkspaces();
+        return Response.json({ result: items }, { headers: { "Access-Control-Allow-Origin": "*" } });
+      } catch (e: unknown) {
+        return Response.json(
+          { error: e instanceof Error ? e.message : String(e) },
+          { status: 500, headers: { "Access-Control-Allow-Origin": "*" } },
+        );
+      }
+    }
+
+    if (url.pathname === "/workspace/state" && req.method === "GET") {
+      if (!currentWorkspace) {
+        return Response.json(
+          { result: { runs: [] } },
+          { headers: { "Access-Control-Allow-Origin": "*" } },
+        );
+      }
+      try {
+        const state = await readWorkspaceState(currentWorkspace.path);
+        return Response.json(
+          { result: state },
+          { headers: { "Access-Control-Allow-Origin": "*" } },
+        );
+      } catch (e: unknown) {
+        return Response.json(
+          { error: e instanceof Error ? e.message : String(e) },
+          { status: 500, headers: { "Access-Control-Allow-Origin": "*" } },
+        );
+      }
+    }
+
+    if (url.pathname === "/workspace/state" && req.method === "POST") {
+      if (!currentWorkspace) {
+        return Response.json(
+          { error: "workspace não selecionado" },
+          { status: 400, headers: { "Access-Control-Allow-Origin": "*" } },
+        );
+      }
+      try {
+        const body = (await req.json()) as WorkspaceState;
+        await writeWorkspaceState(currentWorkspace.path, body);
+        return Response.json(
+          { result: body },
+          { headers: { "Access-Control-Allow-Origin": "*" } },
+        );
+      } catch (e: unknown) {
+        return Response.json(
+          { error: e instanceof Error ? e.message : String(e) },
+          { status: 500, headers: { "Access-Control-Allow-Origin": "*" } },
+        );
+      }
     }
 
     if (url.pathname === "/workspace" && req.method === "POST") {

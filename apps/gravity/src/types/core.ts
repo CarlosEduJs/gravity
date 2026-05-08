@@ -93,3 +93,24 @@ export interface Workspace {
   path: string;
   lastOpenedAt: string;
 }
+
+export type RunStatus = "running" | "success" | "error" | "canceled";
+
+export interface RunSummary {
+  runId: string;
+  status: RunStatus;
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  event?: string;
+  jobId?: string;
+  workflowName?: string;
+  workflowFile?: string;
+}
+
+export interface WorkspaceState {
+  runs: RunSummary[];
+  lastWorkflowPlanAt?: string;
+  workflowCount?: number;
+  jobCount?: number;
+}

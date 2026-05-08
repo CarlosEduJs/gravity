@@ -1,10 +1,10 @@
-import type { Workflow, GravityEvent, Workspace } from "../types/core";
+import type { Workflow, GravityEvent, Workspace, WorkspaceState } from "../types/core";
 
 export class GravityClient {
-  private baseUrl: string;
-  private eventSource: EventSource | null = null;
-  private listeners: Set<(event: GravityEvent) => void> = new Set();
-  private workspace: Workspace | null = null;
+	private baseUrl: string;
+	private eventSource: EventSource | null = null;
+	private listeners: Set<(event: GravityEvent) => void> = new Set();
+	private workspace: Workspace | null = null;
 
   constructor(baseUrl = "http://localhost:5174") {
     this.baseUrl = baseUrl;
@@ -34,16 +34,48 @@ export class GravityClient {
     return this.workspace;
   }
 
-  async pickWorkspace(): Promise<Workspace | null> {
-    const res = await fetch(`${this.baseUrl}/workspace/pick`, {
-      method: "POST",
-    });
-    if (!res.ok) throw new Error("Falha ao abrir seletor de workspace");
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    this.workspace = data.result as Workspace | null;
-    return this.workspace;
-  }
+	async pickWorkspace(): Promise<Workspace | null> {
+		const res = await fetch(`${this.baseUrl}/workspace/pick`, {
+			method: "POST",
+		});
+		if (!res.ok) throw new Error("Falha ao abrir seletor de workspace");
+		const data = await res.json();
+		if (data.error) throw new Error(data.error);
+		this.workspace = data.result as Workspace | null;
+		return this.workspace;
+	}
+
+	async listWorkspaces(): Promise<Workspace[]> {
+		const res = await fetch(`${this.baseUrl}/workspaces`, {
+			method: "GET",
+		});
+		if (!res.ok) throw new Error("Falha ao carregar workspaces");
+		const data = await res.json();
+		if (data.error) throw new Error(data.error);
+		return (data.result as Workspace[]) ?? [];
+	}
+
+	async getWorkspaceState(): Promise<WorkspaceState> {
+		const res = await fetch(`${this.baseUrl}/workspace/state`, {
+			method: "GET",
+		});
+		if (!res.ok) throw new Error("Falha ao carregar workspace state");
+		const data = await res.json();
+		if (data.error) throw new Error(data.error);
+		return (data.result as WorkspaceState) ?? { runs: [] };
+	}
+
+	async updateWorkspaceState(state: WorkspaceState): Promise<WorkspaceState> {
+		const res = await fetch(`${this.baseUrl}/workspace/state`, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(state),
+		});
+		if (!res.ok) throw new Error("Falha ao atualizar workspace state");
+		const data = await res.json();
+		if (data.error) throw new Error(data.error);
+		return (data.result as WorkspaceState) ?? { runs: [] };
+	}
 
   async plan(workdir?: string): Promise<Workflow[]> {
     const res = await fetch(`${this.baseUrl}/plan`, {

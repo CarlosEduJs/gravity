@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import type { Job, Workflow } from "../../types/core";
+import { useEffect, useState } from "react";
+import type { Job, Workflow, WorkspaceState, RunSummary } from "../../types/core";
 import { gravity } from "../../lib/gravityClient";
 import { useWorkspace } from "../../hooks/useWorkspace";
 import { useGravityEvents } from "../../features/logs/useGravityEvents";
@@ -17,20 +17,55 @@ import { Separator } from "@gravity/ui/components/separator";
 
 export default function DashboardPage() {
   const { activeWorkspace } = useWorkspace();
-  const { logs, endRef, clearLogs, isRunning, currentRunId } = useGravityEvents();
+  const workspaceName = activeWorkspace?.name ?? "";
+  const workspacePath = activeWorkspace?.path ?? "";
+  const hasWorkspace = Boolean(activeWorkspace?.path);
+
+  const { logs, endRef, clearLogs, isRunning, currentRunId, runs } = useGravityEvents(
+    workspacePath
+  );
   const [workflows, setWorkflows] = useState<Workflow[] | null>(null);
+  const [workspaceState, setWorkspaceState] = useState<WorkspaceState | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasWorkspace = Boolean(activeWorkspace?.path);
-  const workspaceName = activeWorkspace?.name ?? "";
-  const workspacePath = activeWorkspace?.path ?? "";
+  const terminalTitle = "Run output";
+  const recentRun = runs[0];
+  const workflowCount = workflows?.length ?? workspaceState?.workflowCount ?? 0;
+  const jobCount =
+    workflows?.reduce((total, wf) => total + (wf.jobs?.length ?? 0), 0) ??
+    workspaceState?.jobCount ??
+    0;
 
-  const terminalTitle = useMemo(() => {
-    if (isRunning) return "Run in progress";
-    if (logs.length > 0) return "Latest run";
-    return "Run output";
-  }, [isRunning, logs.length]);
+  const formatDuration = (durationMs: number | null) => {
+    if (!durationMs) return "-";
+    const seconds = Math.round(durationMs / 1000);
+    if (seconds < 60) return `${seconds}s`;
+    const minutes = Math.floor(seconds / 60);
+    const remainder = seconds % 60;
+    return `${minutes}m ${remainder}s`;
+  };
+
+  const formatTime = (iso: string | null) => {
+    if (!iso) return "-";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "-";
+    return date.toLocaleString();
+  };
+
+  useEffect(() => {
+    if (!workspacePath) {
+      setWorkflows(null);
+      setWorkspaceState(null);
+      return;
+    }
+    gravity
+      .getWorkspaceState()
+      .then((state) => setWorkspaceState(state))
+      .catch(() => {
+        setWorkspaceState(null);
+      });
+  }, [workspacePath]);
 
   const loadWorkflows = async () => {
     if (!workspacePath) return;
@@ -39,6 +74,14 @@ export default function DashboardPage() {
     try {
       const result = await gravity.plan(workspacePath);
       setWorkflows(result);
+      const jobTotal = result.reduce((total, wf) => total + (wf.jobs?.length ?? 0), 0);
+      const nextState: WorkspaceState = {
+        runs,
+        lastWorkflowPlanAt: new Date().toISOString(),
+        workflowCount: result.length,
+        jobCount: jobTotal,
+      };
+      gravity.updateWorkspaceState(nextState).then(setWorkspaceState).catch(() => {});
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -46,13 +89,36 @@ export default function DashboardPage() {
     }
   };
 
-  const runJob = async (jobId: string) => {
+  const runJob = async (jobId: string, workflow?: Workflow) => {
     if (!workspacePath) return;
     clearLogs();
     setError(null);
-    gravity.runJob(workspacePath, jobId).catch((e) => {
-      setError(e instanceof Error ? e.message : String(e));
-    });
+    gravity
+      .runJob(workspacePath, jobId)
+      .then((result) => {
+        const runId = result.runId;
+        const entry: RunSummary = {
+          runId,
+          status: "running",
+          startedAt: new Date().toISOString(),
+          finishedAt: null,
+          durationMs: null,
+          jobId,
+          workflowName: workflow?.name,
+          workflowFile: workflow?.file,
+        };
+        const nextRuns = [entry, ...runs.filter((item) => item.runId !== runId)].slice(0, 20);
+        const nextState: WorkspaceState = {
+          runs: nextRuns,
+          lastWorkflowPlanAt: workspaceState?.lastWorkflowPlanAt,
+          workflowCount: workspaceState?.workflowCount,
+          jobCount: workspaceState?.jobCount,
+        };
+        gravity.updateWorkspaceState(nextState).then(setWorkspaceState).catch(() => {});
+      })
+      .catch((e) => {
+        setError(e instanceof Error ? e.message : String(e));
+      });
   };
 
   const stopJob = async () => {
@@ -75,7 +141,7 @@ export default function DashboardPage() {
           </p>
         </div>
         <Button onClick={loadWorkflows} disabled={!hasWorkspace || loading}>
-          {loading ? "Planning..." : "Load workflows"}
+          {loading ? "Loading..." : "Load workflows"}
         </Button>
       </div>
 
@@ -87,17 +153,104 @@ export default function DashboardPage() {
         </Card>
       )}
 
+      <div className="grid gap-3 md:grid-cols-3">
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Workspace summary</CardTitle>
+            <CardDescription>Key workspace stats.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center justify-between">
+                <span>Workflows</span>
+                <span className="text-foreground">
+                  {workflows || workspaceState ? workflowCount : "-"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Jobs</span>
+                <span className="text-foreground">
+                  {workflows || workspaceState ? jobCount : "-"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Last plan</span>
+                <span className="text-foreground">
+                  {workspaceState?.lastWorkflowPlanAt
+                    ? formatTime(workspaceState.lastWorkflowPlanAt)
+                    : "-"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Last run</span>
+                <span className="text-foreground">
+                  {recentRun ? formatTime(recentRun.finishedAt ?? recentRun.startedAt) : "-"}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Latest execution</CardTitle>
+            <CardDescription>Most recent run status.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {recentRun ? (
+              <div className="grid gap-2 text-xs text-muted-foreground">
+                <div className="flex items-center justify-between">
+                  <span>Status</span>
+                  <span className="text-foreground">{recentRun.status}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Duration</span>
+                  <span className="text-foreground">{formatDuration(recentRun.durationMs)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span>Run ID</span>
+                  <span className="text-foreground">{recentRun.runId}</span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No runs yet.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card size="sm">
+          <CardHeader>
+            <CardTitle>Recent runs</CardTitle>
+            <CardDescription>Last 5 executions.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {runs.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No runs yet.</p>
+            ) : (
+              <div className="flex flex-col gap-2 text-xs text-muted-foreground">
+                {runs.slice(0, 5).map((run) => (
+                  <div key={run.runId} className="flex items-center justify-between">
+                    <span className="truncate">{run.status}</span>
+                    <span className="text-foreground">{formatDuration(run.durationMs)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle>Workflows</CardTitle>
-          <CardDescription>Plan and run jobs from this workspace.</CardDescription>
+          <CardDescription>Plan and run jobs for this workspace.</CardDescription>
         </CardHeader>
         <CardContent>
           {!workflows && (
             <p className="text-xs text-muted-foreground">Load workflows to get started.</p>
           )}
           {workflows && workflows.length === 0 && (
-            <p className="text-xs text-muted-foreground">No workflows found.</p>
+            <p className="text-xs text-muted-foreground">No workflows found in this workspace.</p>
           )}
           {workflows && workflows.length > 0 && (
             <div className="flex flex-col gap-4">
@@ -116,7 +269,7 @@ export default function DashboardPage() {
                         <span className="truncate text-xs text-muted-foreground">
                           {job.name || job.id}
                         </span>
-                        <Button size="sm" onClick={() => runJob(job.id)} disabled={isRunning}>
+                        <Button size="sm" onClick={() => runJob(job.id, wf)} disabled={isRunning}>
                           Run
                         </Button>
                       </div>
@@ -132,7 +285,7 @@ export default function DashboardPage() {
 
       <Card size="sm">
         <CardHeader>
-          <CardTitle>{terminalTitle}</CardTitle>
+          <CardTitle>Run output</CardTitle>
           <CardDescription>Live output from the most recent run.</CardDescription>
         </CardHeader>
         <CardContent>

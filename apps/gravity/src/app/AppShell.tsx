@@ -5,7 +5,7 @@ import { Home03Icon, Activity03Icon, Clock04Icon, Setting07Icon } from "@hugeico
 
 import { routes } from "./routes";
 import { useWorkspace } from "../hooks/useWorkspace";
-import { WorkspaceSwitcher } from "../features/workspace/WorkspaceSwitcher";
+import WorkspaceSwitcher from "../features/workspace/WorkspaceSwitcher";
 
 import {
   Sidebar,
@@ -32,7 +32,7 @@ const navIcons = {
 } as const;
 
 export default function AppShell() {
-  const { activeWorkspace, pick } = useWorkspace();
+  const { activeWorkspace, pick, workspaces, setActive } = useWorkspace();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -56,7 +56,13 @@ export default function AppShell() {
       <SidebarProvider>
         <Sidebar collapsible="icon" variant="inset" className="bg-background">
           <SidebarHeader className="flex-row items-center justify-between gap-4">
-            <WorkspaceSwitcher name={workspaceName} path={workspacePath} onPick={handlePick} />
+            <WorkspaceSwitcher
+              name={workspaceName}
+              path={workspacePath}
+              onPick={handlePick}
+              onSelect={setActive}
+              workspaces={workspaces}
+            />
           </SidebarHeader>
           <SidebarContent>
             <SidebarGroup>

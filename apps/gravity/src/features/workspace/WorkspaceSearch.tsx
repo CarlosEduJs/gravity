@@ -16,10 +16,10 @@ type WorkspaceSearchProps = {
 export default function WorkspaceSearch({ placeholder, onPick }: WorkspaceSearchProps) {
   const [query, setQuery] = useState("");
 
-  const helperText = useMemo(() => {
-    if (!query) return "Pick a workspace to start.";
-    return "No matches. Use the picker to choose a folder.";
-  }, [query]);
+	const helperText = useMemo(() => {
+		if (!query) return "Pick a workspace to start.";
+		return "No matches. Use the picker to choose a folder.";
+	}, [query]);
 
   return (
     <Command>
@@ -30,10 +30,10 @@ export default function WorkspaceSearch({ placeholder, onPick }: WorkspaceSearch
       />
       <CommandList>
         <CommandEmpty>{helperText}</CommandEmpty>
-        <CommandGroup heading="Actions">
-          <CommandItem onSelect={onPick}>Pick a folder</CommandItem>
-        </CommandGroup>
-      </CommandList>
-    </Command>
-  );
+				<CommandGroup heading="Actions">
+					<CommandItem onSelect={onPick}>Pick a folder</CommandItem>
+				</CommandGroup>
+			</CommandList>
+		</Command>
+	);
 }

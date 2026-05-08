@@ -13,16 +13,16 @@ type WorkspaceEmptyStateProps = {
 
 export default function WorkspaceEmptyState({ onPick }: WorkspaceEmptyStateProps) {
   return (
-    <Empty>
-      <EmptyHeader>
-        <EmptyTitle>No workspace selected</EmptyTitle>
-        <EmptyDescription>
-          Pick a project folder to start planning and running workflows.
-        </EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>
-        <Button onClick={onPick}>Choose workspace</Button>
-      </EmptyContent>
-    </Empty>
-  );
+		<Empty>
+			<EmptyHeader>
+				<EmptyTitle>No workspace selected</EmptyTitle>
+				<EmptyDescription>
+					Pick a workspace to plan and run workflows.
+				</EmptyDescription>
+			</EmptyHeader>
+			<EmptyContent>
+				<Button onClick={onPick}>Pick a folder</Button>
+			</EmptyContent>
+		</Empty>
+	);
 }

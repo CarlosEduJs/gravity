@@ -16,10 +16,10 @@ export default function WorkspaceOnboardingPage() {
   return (
     <div className="flex h-full flex-col gap-6 p-10">
       <div>
-        <p className="text-xs text-muted-foreground">Workspace setup</p>
-        <h1 className="text-lg font-semibold text-foreground">Select a project workspace</h1>
+        <p className="text-xs text-muted-foreground">Workspace</p>
+        <h1 className="text-lg font-semibold text-foreground">Select a workspace</h1>
         <p className="text-xs text-muted-foreground">
-          Gravity keeps workspace state in .gravity/ inside your project.
+          Gravity stores local state in .gravity/ inside your workspace.
         </p>
       </div>
 
