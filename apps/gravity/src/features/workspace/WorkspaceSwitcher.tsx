@@ -1,4 +1,3 @@
-import { Button } from "@gravity/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,13 +60,11 @@ export default function WorkspaceSwitcher({
                       <DropdownMenuItem
                         key={workspace.id}
                         onClick={() => onSelect(workspace.path)}
-                        className={"group"}
                       >
                         <WorkspaceIdentity
                           name={workspace.name}
                           path={workspace.path}
                           showName={true}
-                          avatarClassName="group-hover:bg-background"
                         />
                         {workspace.path === path && (
                           <HugeiconsIcon
@@ -79,9 +76,7 @@ export default function WorkspaceSwitcher({
                     ))}
                   </div>
                 </DropdownMenuGroup>
-                <Button variant={"outline"} size={"sm"} onClick={onPick}>
-                  Pick Workspace <DropdownMenuShortcut>⌘P</DropdownMenuShortcut>
-                </Button>
+                <DropdownMenuItem onClick={onPick}>Pick Workspace <DropdownMenuShortcut>⌘P</DropdownMenuShortcut></DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         </DropdownMenuGroup>
@@ -95,13 +90,12 @@ interface WorkspaceIdentityProps {
   showName?: boolean;
   path: string;
   className?: string;
-  avatarClassName?: string;
 }
 
-function WorkspaceIdentity({ name, path, showName, className, avatarClassName }: WorkspaceIdentityProps) {
+function WorkspaceIdentity({ name, path, showName, className }: WorkspaceIdentityProps) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <div className={cn("w-4 h-4 bg-primary rounded-full flex items-center justify-center text-background text-xs font-medium", avatarClassName)}>
+      <div className={cn("w-4 h-4 bg-primary rounded-full flex items-center justify-center text-background text-xs font-medium")}>
         {name ? name[0].toUpperCase() : "?"}
       </div>
       {showName && <h2 className="font-semibold">{name || path}</h2>}
