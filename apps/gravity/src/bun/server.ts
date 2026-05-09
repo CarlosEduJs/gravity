@@ -41,7 +41,7 @@ async function getChannel() {
 	}
 }
 
-function tryServe(port: number, app: Elysia): boolean {
+function tryServe(port: number, app: any): boolean {
 	try {
 		app.listen(port);
 		return true;
@@ -92,15 +92,15 @@ export async function startServer({ coreBridge }: ServerOptions) {
 		.get("/workspace", () => ({
 			result: state.workspace,
 		}))
-		.get("/workspaces", async ({ error }) => {
+		.get("/workspaces", async ({ status }) => {
 			try {
 				const items = await listWorkspaces();
 				return { result: items };
 			} catch (e: unknown) {
-				return error(500, { error: toErrorMessage(e) });
+				return status(500, { error: toErrorMessage(e) });
 			}
 		})
-		.get("/workspace/state", async ({ error }) => {
+		.get("/workspace/state", async ({ status }) => {
 			if (!state.workspace) {
 				return { result: { runs: [] } };
 			}
@@ -108,21 +108,21 @@ export async function startServer({ coreBridge }: ServerOptions) {
 				const wsState = await readWorkspaceState(state.workspace.path);
 				return { result: wsState };
 			} catch (e: unknown) {
-				return error(500, { error: toErrorMessage(e) });
+				return status(500, { error: toErrorMessage(e) });
 			}
 		})
 		.post(
 			"/workspace/state",
-			async ({ body, error }) => {
+			async ({ body, status }) => {
 				if (!state.workspace) {
-					return error(400, { error: "No workspace selected" });
+					return status(400, { error: "No workspace selected" });
 				}
 				try {
 					const wsState: WorkspaceState = body;
 					await writeWorkspaceState(state.workspace.path, wsState);
 					return { result: wsState };
 				} catch (e: unknown) {
-					return error(500, { error: toErrorMessage(e) });
+					return status(500, { error: toErrorMessage(e) });
 				}
 			},
 			{
@@ -136,12 +136,12 @@ export async function startServer({ coreBridge }: ServerOptions) {
 		)
 		.post(
 			"/workspace",
-			async ({ body, error }) => {
+			async ({ body, status }) => {
 				try {
 					state.workspace = await setActiveWorkspace(body.path);
 					return { result: state.workspace };
 				} catch (e: unknown) {
-					return error(500, { error: toErrorMessage(e) });
+					return status(500, { error: toErrorMessage(e) });
 				}
 			},
 			{
@@ -150,7 +150,7 @@ export async function startServer({ coreBridge }: ServerOptions) {
 				}),
 			},
 		)
-		.post("/workspace/pick", async ({ error }) => {
+		.post("/workspace/pick", async ({ status }) => {
 			try {
 				const [selectedPath] = await Utils.openFileDialog({
 					startingFolder: state.workspace?.path ?? "~/",
@@ -164,7 +164,7 @@ export async function startServer({ coreBridge }: ServerOptions) {
 				state.workspace = await setActiveWorkspace(selectedPath);
 				return { result: state.workspace };
 			} catch (e: unknown) {
-				return error(500, { error: toErrorMessage(e) });
+				return status(500, { error: toErrorMessage(e) });
 			}
 		})
 		.get("/events", ({ request }) => {
@@ -190,10 +190,10 @@ export async function startServer({ coreBridge }: ServerOptions) {
 		})
 		.post(
 			"/plan",
-			async ({ body, error }) => {
+			async ({ body, status }) => {
 				const workspacePath = body.workdir || state.workspace?.path;
 				if (!workspacePath) {
-					return error(400, { error: "No workspace selected" });
+					return status(400, { error: "No workspace selected" });
 				}
 				try {
 					const absoluteWorkdir = resolve(workspacePath);
@@ -203,7 +203,7 @@ export async function startServer({ coreBridge }: ServerOptions) {
 					return { result };
 				} catch (e: unknown) {
 					console.error("[plan] Error:", e);
-					return error(500, { error: toErrorMessage(e) });
+					return status(500, { error: toErrorMessage(e) });
 				}
 			},
 			{
@@ -214,10 +214,10 @@ export async function startServer({ coreBridge }: ServerOptions) {
 		)
 		.post(
 			"/run",
-			async ({ body, error }) => {
+			async ({ body, status }) => {
 				const workspacePath = body.workdir || state.workspace?.path;
 				if (!workspacePath) {
-					return error(400, { error: "No workspace selected" });
+					return status(400, { error: "No workspace selected" });
 				}
 				try {
 					const absoluteWorkdir = resolve(workspacePath);
@@ -227,7 +227,7 @@ export async function startServer({ coreBridge }: ServerOptions) {
 					return { result };
 				} catch (e: unknown) {
 					console.error("[run] Error:", e);
-					return error(500, { error: toErrorMessage(e) });
+					return status(500, { error: toErrorMessage(e) });
 				}
 			},
 			{
@@ -239,7 +239,7 @@ export async function startServer({ coreBridge }: ServerOptions) {
 		)
 		.post(
 			"/stop",
-			async ({ body, error }) => {
+			async ({ body, status }) => {
 				try {
 					const params: Record<string, string> = {};
 					if (body.runId) params.runId = body.runId;
@@ -247,7 +247,7 @@ export async function startServer({ coreBridge }: ServerOptions) {
 					return { result };
 				} catch (e: unknown) {
 					console.error("[stop] Error:", e);
-					return error(500, { error: toErrorMessage(e) });
+					return status(500, { error: toErrorMessage(e) });
 				}
 			},
 			{
@@ -256,9 +256,9 @@ export async function startServer({ coreBridge }: ServerOptions) {
 				}),
 			},
 		)
-		.onError(({ code }) => {
+		.onError(({ code, status }) => {
 			if (code === "NOT_FOUND") {
-				return { error: "Not found" };
+				return status(404, { error: "Not found" });
 			}
 		});
 
