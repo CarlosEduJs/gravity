@@ -54,24 +54,8 @@ function toErrorMessage(e: unknown): string {
 	return e instanceof Error ? e.message : String(e);
 }
 
-export async function startServer({ coreBridge }: ServerOptions) {
-	const channel = await getChannel();
-	const basePort = basePortForChannel(channel);
-	const startedAt = new Date().toISOString();
-
-	const state: ServerState = {
-		workspace: await getActiveWorkspace(),
-		port: 0,
-		sseClients: new Set(),
-	};
-
-	coreBridge.onEvent((event) => {
-		for (const client of state.sseClients) {
-			client(event);
-		}
-	});
-
-	const app = new Elysia()
+function createGravityApp(state: ServerState, channel: string, startedAt: string, coreBridge: CoreBridge) {
+	return new Elysia()
 		.use(
 			cors({
 				origin: "*",
@@ -127,7 +111,24 @@ export async function startServer({ coreBridge }: ServerOptions) {
 			},
 			{
 				body: t.Object({
-					runs: t.Array(t.Any()),
+					runs: t.Array(
+						t.Object({
+							runId: t.String(),
+							status: t.Union([
+								t.Literal("running"),
+								t.Literal("success"),
+								t.Literal("error"),
+								t.Literal("canceled"),
+							]),
+							startedAt: t.String(),
+							finishedAt: t.Union([t.String(), t.Null()]),
+							durationMs: t.Union([t.Number(), t.Null()]),
+							event: t.Optional(t.String()),
+							jobId: t.Optional(t.String()),
+							workflowName: t.Optional(t.String()),
+							workflowFile: t.Optional(t.String()),
+						}),
+					),
 					lastWorkflowPlanAt: t.Optional(t.String()),
 					workflowCount: t.Optional(t.Number()),
 					jobCount: t.Optional(t.Number()),
@@ -261,6 +262,28 @@ export async function startServer({ coreBridge }: ServerOptions) {
 				return status(404, { error: "Not found" });
 			}
 		});
+}
+
+export type GravityApp = ReturnType<typeof createGravityApp>;
+
+export async function startServer({ coreBridge }: ServerOptions) {
+	const channel = await getChannel();
+	const basePort = basePortForChannel(channel);
+	const startedAt = new Date().toISOString();
+
+	const state: ServerState = {
+		workspace: await getActiveWorkspace(),
+		port: 0,
+		sseClients: new Set(),
+	};
+
+	coreBridge.onEvent((event) => {
+		for (const client of state.sseClients) {
+			client(event);
+		}
+	});
+
+	const app = createGravityApp(state, channel, startedAt, coreBridge);
 
 	for (let port = basePort; port <= PORT_END; port += 1) {
 		if (tryServe(port, app)) {

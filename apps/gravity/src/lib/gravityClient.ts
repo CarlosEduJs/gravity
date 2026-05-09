@@ -1,34 +1,12 @@
+import { treaty } from "@elysiajs/eden";
 import type { Workflow, GravityEvent, Workspace, WorkspaceState } from "../types/core";
+import type { GravityApp } from "../bun/server";
 
 const PORTS = [9800, 9805, 9810, 9801, 9802, 9803, 9804, 9806, 9807, 9808, 9809] as const;
 
-// ── Response shapes ─────────────────────────────────────────────────────
-
-type ApiResult<T> = { result: T; error?: undefined };
-type ApiError = { error: string; result?: undefined };
-type ApiResponse<T> = ApiResult<T> | ApiError;
-
-function isApiError<T>(data: ApiResponse<T>): data is ApiError {
-	return "error" in data && typeof data.error === "string";
-}
-
-/** Fetch JSON from the bridge and validate the response envelope. */
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
-	const res = await fetch(url, init);
-	if (!res.ok) {
-		throw new Error(`Requisição falhou (${res.status}): ${url}`);
-	}
-	const data = (await res.json()) as ApiResponse<T>;
-	if (isApiError(data)) {
-		throw new Error(data.error);
-	}
-	return data.result;
-}
-
-// ── Client ──────────────────────────────────────────────────────────────
-
 export class GravityClient {
 	private baseUrl: string;
+	private api: ReturnType<typeof treaty<GravityApp>>;
 	private eventSource: EventSource | null = null;
 	private listeners: Set<(event: GravityEvent) => void> = new Set();
 	private connectionPromise: Promise<void> | null = null;
@@ -45,6 +23,12 @@ export class GravityClient {
 		}
 
 		this.baseUrl = resolvedUrl ?? baseUrl ?? "http://localhost:9800";
+		this.api = treaty<GravityApp>(this.baseUrl);
+	}
+
+	private setBaseUrl(url: string) {
+		this.baseUrl = url;
+		this.api = treaty<GravityApp>(this.baseUrl);
 	}
 
 	private ensureConnected(): Promise<void> {
@@ -76,7 +60,7 @@ export class GravityClient {
 
 		for (const port of PORTS) {
 			if (await tryPort(port)) {
-				this.baseUrl = `http://localhost:${port}`;
+				this.setBaseUrl(`http://localhost:${port}`);
 				return;
 			}
 		}
@@ -88,16 +72,18 @@ export class GravityClient {
 		this.connectionPromise = null;
 	}
 
-	/** Wrapper that auto-connects and invalidates on network failures. */
-	private async request<T>(
-		path: string,
-		init?: RequestInit,
-	): Promise<T> {
+	private async callApi<T>(request: Promise<{ data: any; error: any }>): Promise<T> {
 		await this.ensureConnected();
 		try {
-			return await fetchJson<T>(`${this.baseUrl}${path}`, init);
+			const { data, error } = await request;
+			if (error) {
+				throw new Error(error.value?.error ?? "Unknown API error");
+			}
+			return data?.result as T;
 		} catch (e: unknown) {
-			if (e instanceof TypeError) this.invalidateConnection();
+			if (e instanceof TypeError || (e as Error).message === "Failed to fetch") {
+				this.invalidateConnection();
+			}
 			throw e;
 		}
 	}
@@ -105,9 +91,9 @@ export class GravityClient {
 	async getBridgeInfo(): Promise<{ port: number; channel: string; startedAt: string } | null> {
 		await this.ensureConnected();
 		try {
-			const res = await fetch(`${this.baseUrl}/bridge`, { method: "GET" });
-			if (!res.ok) return null;
-			return (await res.json()) as { port: number; channel: string; startedAt: string };
+			const { data, error } = await this.api.bridge.get();
+			if (error) return null;
+			return data as { port: number; channel: string; startedAt: string };
 		} catch {
 			this.invalidateConnection();
 			return null;
@@ -115,65 +101,47 @@ export class GravityClient {
 	}
 
 	async getWorkspace(): Promise<Workspace | null> {
-		return this.request<Workspace | null>("/workspace", { method: "GET" });
+		return this.callApi<Workspace | null>(this.api.workspace.get());
 	}
 
 	async setWorkspace(path: string): Promise<Workspace> {
-		const result = await this.request<Workspace>("/workspace", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ path }),
-		});
+		const result = await this.callApi<Workspace>(this.api.workspace.post({ path }));
 		this.invalidateConnection();
 		return result;
 	}
 
 	async pickWorkspace(): Promise<Workspace | null> {
-		return this.request<Workspace | null>("/workspace/pick", { method: "POST" });
+		return this.callApi<Workspace | null>(this.api.workspace.pick.post());
 	}
 
 	async listWorkspaces(): Promise<Workspace[]> {
-		const result = await this.request<Workspace[]>("/workspaces", { method: "GET" });
+		const result = await this.callApi<Workspace[]>(this.api.workspaces.get());
 		return result ?? [];
 	}
 
 	async getWorkspaceState(): Promise<WorkspaceState> {
-		const result = await this.request<WorkspaceState>("/workspace/state", { method: "GET" });
+		const result = await this.callApi<WorkspaceState>(this.api.workspace.state.get());
 		return result ?? { runs: [] };
 	}
 
 	async updateWorkspaceState(state: WorkspaceState): Promise<WorkspaceState> {
-		const result = await this.request<WorkspaceState>("/workspace/state", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(state),
-		});
+		const result = await this.callApi<WorkspaceState>(this.api.workspace.state.post(state));
 		return result ?? { runs: [] };
 	}
 
 	async plan(workdir?: string): Promise<Workflow[]> {
-		return this.request<Workflow[]>("/plan", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify(workdir ? { workdir } : {}),
-		});
+		return this.callApi<Workflow[]>(this.api.plan.post(workdir ? { workdir } : {}));
 	}
 
 	async runJob(workdir: string | undefined, jobId: string): Promise<{ runId: string }> {
-		return this.request<{ runId: string }>("/run", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ ...(workdir ? { workdir } : {}), job: jobId }),
-		});
+		return this.callApi<{ runId: string }>(
+			this.api.run.post({ ...(workdir ? { workdir } : {}), job: jobId }),
+		);
 	}
 
 	async stopJob(runId: string): Promise<boolean> {
-		const result = await this.request<{ stopped: boolean }>("/stop", {
-			method: "POST",
-			headers: { "Content-Type": "application/json" },
-			body: JSON.stringify({ runId }),
-		});
-		return result.stopped;
+		const data = await this.callApi<{ stopped: boolean }>(this.api.stop.post({ runId }));
+		return data.stopped;
 	}
 
 	subscribe(onEvent: (event: GravityEvent) => void): () => void {
