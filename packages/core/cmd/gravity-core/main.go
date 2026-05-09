@@ -11,6 +11,7 @@ import (
 
 	"g-core/internal/engine"
 	"g-core/internal/eventbus"
+	"g-core/internal/version"
 )
 
 // RPCRequest representa uma chamada JSON-RPC simples vinda do Electrobun
@@ -80,6 +81,12 @@ func (d *Dispatcher) SendEvent(event eventbus.Event) {
 }
 
 func main() {
+	// Support standalone 'info' command
+	if len(os.Args) > 1 && os.Args[1] == "info" {
+		version.ShowVersion()
+		return
+	}
+
 	dispatcher := NewDispatcher()
 
 	// inicia o EventBus e linkar ao Dispatcher
@@ -148,6 +155,11 @@ func main() {
 			} else {
 				dispatcher.SendError(req.ID, fmt.Sprintf("Nenhuma execução ativa encontrada para runId: %s", runID))
 			}
+		case "info":
+			dispatcher.SendResult(req.ID, map[string]string{
+				"version":   version.Version,
+				"buildDate": version.BuildDate,
+			})
 		default:
 			dispatcher.SendError(req.ID, "Método não encontrado")
 		}
