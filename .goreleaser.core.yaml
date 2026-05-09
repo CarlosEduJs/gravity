@@ -1,0 +1,43 @@
+project_name: gravity-core
+
+before:
+  hooks:
+    - go mod tidy
+    - cd packages/core && go mod tidy
+
+builds:
+  - id: core
+    dir: packages/core
+    main: ./cmd/gravity-core
+    binary: gravity-core
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w -X g-core/internal/version.Version={{ replace .Tag "core/v-" "" }} -X g-core/internal/version.BuildDate={{ .Date }}
+
+archives:
+  - format: tar.gz
+    name_template: "{{ .ProjectName }}-{{ replace .Tag "core/v-" "" }}-{{ .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  name_template: "{{ .Tag }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
