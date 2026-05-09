@@ -1,36 +1,36 @@
 .PHONY: build-core test-core release-core clean
 
-VERSION := 0.1.0-alpha.0
-BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
-LDFLAGS := -X 'g-core/internal/version.Version=$(VERSION)' -X 'g-core/internal/version.BuildDate=$(BUILD_DATE)'
-BINARY_NAME := gravity-core
-OUT_DIR := .bin
-LOCAL_BIN := apps/gravity/bin/$(BINARY_NAME)
+CORE_VERSION := 0.1.0-alpha.0
+CORE_BUILD_DATE := $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+CORE_LDFLAGS := -X 'g-core/internal/version.Version=$(CORE_VERSION)' -X 'g-core/internal/version.BuildDate=$(CORE_BUILD_DATE)'
+CORE_BINARY_NAME := gravity-core
+CORE_OUT_DIR := .bin
+CORE_LOCAL_BIN := apps/gravity/bin/$(CORE_BINARY_NAME)
 
 # Local development build (current OS/ARCH)
 build-core:
-	@echo "Building core binary v$(VERSION) for local development..."
+	@echo "Building core binary v$(CORE_VERSION) for local development..."
 	@mkdir -p apps/gravity/bin
-	cd packages/core && go build -ldflags "$(LDFLAGS)" -o ../../$(LOCAL_BIN) ./cmd/gravity-core
-	@echo "Done! Local binary at $(LOCAL_BIN)"
+	cd packages/core && go build -ldflags "$(CORE_LDFLAGS)" -o ../../$(CORE_LOCAL_BIN) ./cmd/gravity-core
+	@echo "Done! Local binary at $(CORE_LOCAL_BIN)"
 
 # Release build for multiple platforms
 release-core: clean
-	@echo "Building releases for v$(VERSION)..."
-	@mkdir -p $(OUT_DIR)
+	@echo "Building releases for v$(CORE_VERSION)..."
+	@mkdir -p $(CORE_OUT_DIR)
 	
 	# Linux
-	GOOS=linux GOARCH=amd64 cd packages/core && go build -ldflags "$(LDFLAGS)" -o ../../$(OUT_DIR)/$(BINARY_NAME)-$(VERSION)-linux-amd64 ./cmd/gravity-core
-	GOOS=linux GOARCH=arm64 cd packages/core && go build -ldflags "$(LDFLAGS)" -o ../../$(OUT_DIR)/$(BINARY_NAME)-$(VERSION)-linux-arm64 ./cmd/gravity-core
+	GOOS=linux GOARCH=amd64 cd packages/core && go build -ldflags "$(CORE_LDFLAGS)" -o ../../$(CORE_OUT_DIR)/$(CORE_BINARY_NAME)-$(CORE_VERSION)-linux-amd64 ./cmd/gravity-core
+	GOOS=linux GOARCH=arm64 cd packages/core && go build -ldflags "$(CORE_LDFLAGS)" -o ../../$(CORE_OUT_DIR)/$(CORE_BINARY_NAME)-$(CORE_VERSION)-linux-arm64 ./cmd/gravity-core
 	
 	# Windows
-	GOOS=windows GOARCH=amd64 cd packages/core && go build -ldflags "$(LDFLAGS)" -o ../../$(OUT_DIR)/$(BINARY_NAME)-$(VERSION)-windows-amd64.exe ./cmd/gravity-core
+	GOOS=windows GOARCH=amd64 cd packages/core && go build -ldflags "$(CORE_LDFLAGS)" -o ../../$(CORE_OUT_DIR)/$(CORE_BINARY_NAME)-$(CORE_VERSION)-windows-amd64.exe ./cmd/gravity-core
 	
 	# macOS (Darwin)
-	GOOS=darwin GOARCH=amd64 cd packages/core && go build -ldflags "$(LDFLAGS)" -o ../../$(OUT_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-amd64 ./cmd/gravity-core
-	GOOS=darwin GOARCH=arm64 cd packages/core && go build -ldflags "$(LDFLAGS)" -o ../../$(OUT_DIR)/$(BINARY_NAME)-$(VERSION)-darwin-arm64 ./cmd/gravity-core
+	GOOS=darwin GOARCH=amd64 cd packages/core && go build -ldflags "$(CORE_LDFLAGS)" -o ../../$(CORE_OUT_DIR)/$(CORE_BINARY_NAME)-$(CORE_VERSION)-darwin-amd64 ./cmd/gravity-core
+	GOOS=darwin GOARCH=arm64 cd packages/core && go build -ldflags "$(CORE_LDFLAGS)" -o ../../$(CORE_OUT_DIR)/$(CORE_BINARY_NAME)-$(CORE_VERSION)-darwin-arm64 ./cmd/gravity-core
 	
-	@echo "All release binaries are in $(OUT_DIR)/"
+	@echo "All release binaries are in $(CORE_OUT_DIR)/"
 
 test-core:
 	@echo "Running tests for packages/core..."
@@ -38,5 +38,5 @@ test-core:
 
 clean:
 	@echo "Cleaning up..."
-	rm -rf $(OUT_DIR)
+	rm -rf $(CORE_OUT_DIR)
 	@echo "Clean complete."
