@@ -1,8 +1,10 @@
+version: 2
+
 project_name: gravity-core
 
 before:
   hooks:
-    - go mod tidy
+    - sh -c "cd packages/core && go mod tidy"
 
 builds:
   - id: core
@@ -20,21 +22,21 @@ builds:
       - arm64
     ldflags:
       - -s -w
-      - -X g-core/internal/version.Version={{ .Version }}
+      - -X g-core/internal/version.Version={{ replace .Tag "core/v-" "" }}
       - -X g-core/internal/version.BuildDate={{ .Date }}
 
 archives:
-  - format: tar.gz
-    name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
+  - formats: [ "tar.gz" ]
+    name_template: "{{ .ProjectName }}-{{ replace .Tag \"core/v-\" \"\" }}-{{ .Os }}-{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [ "zip" ]
 
 checksum:
   name_template: "checksums.txt"
 
 snapshot:
-  name_template: "{{ .Version }}-next"
+  version_template: "{{ replace .Tag \"core/v-\" \"\" }}-next"
 
 changelog:
   sort: asc
