@@ -11,3 +11,4 @@ build-core:
 test-core:
 	@echo "Running tests for packages/core..."
 	cd packages/core && go test ./...
+ 
