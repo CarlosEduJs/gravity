@@ -144,9 +144,10 @@ func (a *ActAdapter) Run(ctx context.Context, opts RunOptions) error {
 	}
 
 	runnerConfig := &runner.Config{
-		Workdir:   opts.Workdir,
-		EventName: opts.Event,
-		LogOutput: true,
+		Workdir:        opts.Workdir,
+		EventName:      opts.Event,
+		LogOutput:      true,
+		GitHubInstance: "github.com",
 		Platforms: map[string]string{
 			"ubuntu-latest": "catthehacker/ubuntu:act-latest",
 			"ubuntu-22.04":  "catthehacker/ubuntu:act-22.04",
