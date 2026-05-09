@@ -10,7 +10,6 @@ import {
 } from "react";
 import type { Workspace } from "../types/core";
 import { gravity } from "../lib/gravityClient";
-import { getActiveWorkspace, pickWorkspace } from "../lib/workspaceClient";
 
 type WorkspaceState = {
 	active: Workspace | null;
@@ -43,7 +42,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 		setState((prev) => ({ ...prev, loading: true, error: null }));
 		try {
 			const [workspace, list] = await Promise.all([
-				getActiveWorkspace(),
+				gravity.getWorkspace(),
 				gravity.listWorkspaces(),
 			]);
 			setState({ active: workspace, list, loading: false, error: null });
@@ -59,7 +58,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
 
 	const pick = useCallback(async () => {
 		try {
-			const workspace = await pickWorkspace();
+			const workspace = await gravity.pickWorkspace();
 			if (workspace) {
 				const list = await gravity.listWorkspaces();
 				setState({ active: workspace, list, loading: false, error: null });

@@ -92,7 +92,7 @@ export default function AppShell() {
           </SidebarGroup>
         </SidebarContent>
         <SidebarFooter>
-          <SidebarFooterb currentPath={currentPath} />
+          <SidebarFooterContent currentPath={currentPath} />
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="bg-card rounded-2xl">
@@ -106,11 +106,11 @@ export default function AppShell() {
   );
 }
 
-interface WorkspaceSwitcherProps {
+interface SidebarFooterProps {
   currentPath?: string;
 }
 
-function SidebarFooterb({ currentPath }: WorkspaceSwitcherProps) {
+function SidebarFooterContent({ currentPath }: SidebarFooterProps) {
   const { open } = useSidebar();
 
   return (

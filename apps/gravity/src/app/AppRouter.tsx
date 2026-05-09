@@ -5,14 +5,21 @@ import { routes } from "./routes";
 import { useWorkspace } from "../hooks/useWorkspace";
 import WorkspaceOnboardingPage from "../pages/WorkspaceOnboarding";
 import DashboardPage from "../pages/Dashboard";
+import BridgeOffline from "../pages/BridgeOffline";
+import { useBridgeStatus } from "../hooks/useBridgeStatus";
 
 export default function AppRouter() {
-  const { activeWorkspace, loading } = useWorkspace();
-  const hasWorkspace = Boolean(activeWorkspace?.path);
+	const { activeWorkspace, loading } = useWorkspace();
+	const hasWorkspace = Boolean(activeWorkspace?.path);
+	const { status, retry, info } = useBridgeStatus();
 
-  if (loading) {
-    return null;
-  }
+	if (status === "offline") {
+		return <BridgeOffline onRetry={retry} info={info} />;
+	}
+
+	if (loading || status === "checking") {
+		return null;
+	}
 
   return (
     <Routes>

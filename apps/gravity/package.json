@@ -1,7 +1,7 @@
 {
-  "name": "electrobun-react-tailwind-vite",
+  "name": "gravity",
   "version": "1.0.0",
-  "description": "Electrobun app with React, Tailwind CSS, and Vite HMR",
+  "description": "Gravity desktop app",
   "scripts": {
     "start": "vite build && electrobun dev",
     "dev": "electrobun dev --watch",
@@ -10,6 +10,7 @@
     "build:canary": "vite build && electrobun build --env=canary"
   },
   "dependencies": {
+    "@elysiajs/cors": "^1.4.2",
     "@fontsource-variable/inter": "^5.2.8",
     "@gravity/ui": "workspace:*",
     "@hugeicons/core-free-icons": "^4.1.1",
@@ -19,6 +20,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "electrobun": "1.16.0",
+    "elysia": "^1.4.28",
     "radix-ui": "^1.4.3",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",

@@ -3,15 +3,11 @@ import { existsSync } from "fs";
 import { join, resolve } from "path";
 
 import type { GravityEvent, RPCNotification, RPCResponse } from "../types/core";
+import type { CoreBridge } from "./types";
 
 type PendingRequest = {
   resolve: (value: unknown) => void;
   reject: (reason?: unknown) => void;
-};
-
-type CoreBridge = {
-  sendRequest: (method: string, params: Record<string, string>) => Promise<unknown>;
-  onEvent: (handler: (event: GravityEvent) => void) => () => void;
 };
 
 function findCoreBinary() {
@@ -32,6 +28,7 @@ function findCoreBinary() {
 }
 
 export function createCoreBridge(): CoreBridge {
+  let nextRequestId = 0;
   const corePath = findCoreBinary();
   console.log("Attempting to start gravity-core at:", corePath);
 
@@ -96,7 +93,7 @@ export function createCoreBridge(): CoreBridge {
   listenToCore();
 
   async function sendRequest(method: string, params: Record<string, string>) {
-    const requestId = Math.floor(Math.random() * 1000000);
+    const requestId = ++nextRequestId;
     const rpcReq = {
       jsonrpc: "2.0",
       method,

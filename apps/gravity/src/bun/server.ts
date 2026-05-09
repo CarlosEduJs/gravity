@@ -1,213 +1,291 @@
-import { Utils } from "electrobun/bun";
+import { Elysia, t } from "elysia";
+import { cors } from "@elysiajs/cors";
+import { Utils, Updater } from "electrobun/bun";
 import { resolve } from "path";
 
-import type { GravityEvent, WorkspaceState } from "../types/core";
+import type { GravityEvent, WorkspaceState, Workspace } from "../types/core";
 import type { CoreBridge } from "./types";
 import {
-  getActiveWorkspace,
-  listWorkspaces,
-  readWorkspaceState,
-  setActiveWorkspace,
-  writeWorkspaceState,
+	getActiveWorkspace,
+	listWorkspaces,
+	readWorkspaceState,
+	setActiveWorkspace,
+	writeWorkspaceState,
 } from "./workspace";
+import { writeBridgeInfo } from "./bridge";
 
 type ServerOptions = {
-  coreBridge: CoreBridge;
-  port?: number;
+	coreBridge: CoreBridge;
 };
 
-export async function startServer({ coreBridge, port = 5174 }: ServerOptions) {
-  let currentWorkspace = await getActiveWorkspace();
-  const sseClients = new Set<(event: GravityEvent) => void>();
+type ServerState = {
+	workspace: Workspace | null;
+	port: number;
+	sseClients: Set<(event: GravityEvent) => void>;
+};
 
-  coreBridge.onEvent((event) => {
-    for (const client of sseClients) {
-      client(event);
-    }
-  });
+const PORT_START = 9800;
+const PORT_END = 9810;
 
-  Bun.serve({
-    port,
-    async fetch(req) {
-      const url = new URL(req.url);
+function basePortForChannel(channel: string) {
+	if (channel === "dev") return 9805;
+	if (channel === "canary") return 9810;
+	return 9800;
+}
 
-      if (req.method === "OPTIONS") {
-        return new Response(null, {
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type",
-          },
-        });
-      }
+async function getChannel() {
+	try {
+		return await Updater.localInfo.channel();
+	} catch {
+		return "stable";
+	}
+}
 
-      if (url.pathname === "/workspace" && req.method === "GET") {
-        if (!currentWorkspace) {
-          return Response.json({ result: null }, { headers: { "Access-Control-Allow-Origin": "*" } });
-        }
-        return Response.json(
-          { result: currentWorkspace },
-          { headers: { "Access-Control-Allow-Origin": "*" } },
-        );
-      }
+function tryServe(port: number, app: Elysia): boolean {
+	try {
+		app.listen(port);
+		return true;
+	} catch {
+		return false;
+	}
+}
 
-      if (url.pathname === "/workspaces" && req.method === "GET") {
-        try {
-          const items = await listWorkspaces();
-          return Response.json({ result: items }, { headers: { "Access-Control-Allow-Origin": "*" } });
-        } catch (e: unknown) {
-          return Response.json(
-            { error: e instanceof Error ? e.message : String(e) },
-            { status: 500, headers: { "Access-Control-Allow-Origin": "*" } },
-          );
-        }
-      }
+function toErrorMessage(e: unknown): string {
+	return e instanceof Error ? e.message : String(e);
+}
 
-      if (url.pathname === "/workspace/state" && req.method === "GET") {
-        if (!currentWorkspace) {
-          return Response.json(
-            { result: { runs: [] } },
-            { headers: { "Access-Control-Allow-Origin": "*" } },
-          );
-        }
-        try {
-          const state = await readWorkspaceState(currentWorkspace.path);
-          return Response.json(
-            { result: state },
-            { headers: { "Access-Control-Allow-Origin": "*" } },
-          );
-        } catch (e: unknown) {
-          return Response.json(
-            { error: e instanceof Error ? e.message : String(e) },
-            { status: 500, headers: { "Access-Control-Allow-Origin": "*" } },
-          );
-        }
-      }
+export async function startServer({ coreBridge }: ServerOptions) {
+	const channel = await getChannel();
+	const basePort = basePortForChannel(channel);
+	const startedAt = new Date().toISOString();
 
-      if (url.pathname === "/workspace/state" && req.method === "POST") {
-        if (!currentWorkspace) {
-          return Response.json(
-            { error: "workspace não selecionado" },
-            { status: 400, headers: { "Access-Control-Allow-Origin": "*" } },
-          );
-        }
-        try {
-          const body = (await req.json()) as WorkspaceState;
-          await writeWorkspaceState(currentWorkspace.path, body);
-          return Response.json(
-            { result: body },
-            { headers: { "Access-Control-Allow-Origin": "*" } },
-          );
-        } catch (e: unknown) {
-          return Response.json(
-            { error: e instanceof Error ? e.message : String(e) },
-            { status: 500, headers: { "Access-Control-Allow-Origin": "*" } },
-          );
-        }
-      }
+	const state: ServerState = {
+		workspace: await getActiveWorkspace(),
+		port: 0,
+		sseClients: new Set(),
+	};
 
-      if (url.pathname === "/workspace" && req.method === "POST") {
-        try {
-          const body = await req.json();
-          if (!body?.path || typeof body.path !== "string") {
-            return Response.json(
-              { error: "path é obrigatório" },
-              { status: 400, headers: { "Access-Control-Allow-Origin": "*" } },
-            );
-          }
-          currentWorkspace = await setActiveWorkspace(body.path);
-          return Response.json(
-            { result: currentWorkspace },
-            { headers: { "Access-Control-Allow-Origin": "*" } },
-          );
-        } catch (e: unknown) {
-          return Response.json(
-            { error: e instanceof Error ? e.message : String(e) },
-            { status: 500, headers: { "Access-Control-Allow-Origin": "*" } },
-          );
-        }
-      }
+	coreBridge.onEvent((event) => {
+		for (const client of state.sseClients) {
+			client(event);
+		}
+	});
 
-      if (url.pathname === "/workspace/pick" && req.method === "POST") {
-        try {
-          const [selectedPath] = await Utils.openFileDialog({
-            startingFolder: currentWorkspace?.path ?? "~/",
-            canChooseFiles: false,
-            canChooseDirectory: true,
-            allowsMultipleSelection: false,
-          });
-          if (!selectedPath) {
-            return Response.json(
-              { result: null },
-              { headers: { "Access-Control-Allow-Origin": "*" } },
-            );
-          }
-          currentWorkspace = await setActiveWorkspace(selectedPath);
-          return Response.json(
-            { result: currentWorkspace },
-            { headers: { "Access-Control-Allow-Origin": "*" } },
-          );
-        } catch (e: unknown) {
-          return Response.json(
-            { error: e instanceof Error ? e.message : String(e) },
-            { status: 500, headers: { "Access-Control-Allow-Origin": "*" } },
-          );
-        }
-      }
+	const app = new Elysia()
+		.use(
+			cors({
+				origin: "*",
+				methods: ["GET", "POST", "OPTIONS"],
+				allowedHeaders: ["Content-Type"],
+			}),
+		)
+		.get("/health", () => ({
+			status: "ok" as const,
+			port: state.port,
+			channel,
+		}))
+		.get("/bridge", () => ({
+			port: state.port,
+			channel,
+			startedAt,
+		}))
+		.get("/workspace", () => ({
+			result: state.workspace,
+		}))
+		.get("/workspaces", async ({ error }) => {
+			try {
+				const items = await listWorkspaces();
+				return { result: items };
+			} catch (e: unknown) {
+				return error(500, { error: toErrorMessage(e) });
+			}
+		})
+		.get("/workspace/state", async ({ error }) => {
+			if (!state.workspace) {
+				return { result: { runs: [] } };
+			}
+			try {
+				const wsState = await readWorkspaceState(state.workspace.path);
+				return { result: wsState };
+			} catch (e: unknown) {
+				return error(500, { error: toErrorMessage(e) });
+			}
+		})
+		.post(
+			"/workspace/state",
+			async ({ body, error }) => {
+				if (!state.workspace) {
+					return error(400, { error: "No workspace selected" });
+				}
+				try {
+					const wsState: WorkspaceState = body;
+					await writeWorkspaceState(state.workspace.path, wsState);
+					return { result: wsState };
+				} catch (e: unknown) {
+					return error(500, { error: toErrorMessage(e) });
+				}
+			},
+			{
+				body: t.Object({
+					runs: t.Array(t.Any()),
+					lastWorkflowPlanAt: t.Optional(t.String()),
+					workflowCount: t.Optional(t.Number()),
+					jobCount: t.Optional(t.Number()),
+				}),
+			},
+		)
+		.post(
+			"/workspace",
+			async ({ body, error }) => {
+				try {
+					state.workspace = await setActiveWorkspace(body.path);
+					return { result: state.workspace };
+				} catch (e: unknown) {
+					return error(500, { error: toErrorMessage(e) });
+				}
+			},
+			{
+				body: t.Object({
+					path: t.String(),
+				}),
+			},
+		)
+		.post("/workspace/pick", async ({ error }) => {
+			try {
+				const [selectedPath] = await Utils.openFileDialog({
+					startingFolder: state.workspace?.path ?? "~/",
+					canChooseFiles: false,
+					canChooseDirectory: true,
+					allowsMultipleSelection: false,
+				});
+				if (!selectedPath) {
+					return { result: null };
+				}
+				state.workspace = await setActiveWorkspace(selectedPath);
+				return { result: state.workspace };
+			} catch (e: unknown) {
+				return error(500, { error: toErrorMessage(e) });
+			}
+		})
+		.get("/events", ({ request }) => {
+			const stream = new ReadableStream({
+				start(controller) {
+					const sendEvent = (event: GravityEvent) => {
+						controller.enqueue(`data: ${JSON.stringify(event)}\n\n`);
+					};
+					state.sseClients.add(sendEvent);
 
-      if (url.pathname === "/events" && req.method === "GET") {
-        const stream = new ReadableStream({
-          start(controller) {
-            const sendEvent = (event: GravityEvent) => {
-              controller.enqueue(`data: ${JSON.stringify(event)}\n\n`);
-            };
-            sseClients.add(sendEvent);
+					request.signal.addEventListener("abort", () => {
+						state.sseClients.delete(sendEvent);
+					});
+				},
+			});
+			return new Response(stream, {
+				headers: {
+					"Content-Type": "text/event-stream",
+					"Cache-Control": "no-cache",
+					Connection: "keep-alive",
+				},
+			});
+		})
+		.post(
+			"/plan",
+			async ({ body, error }) => {
+				const workspacePath = body.workdir || state.workspace?.path;
+				if (!workspacePath) {
+					return error(400, { error: "No workspace selected" });
+				}
+				try {
+					const absoluteWorkdir = resolve(workspacePath);
+					const result = await coreBridge.sendRequest("plan", {
+						workdir: absoluteWorkdir,
+					});
+					return { result };
+				} catch (e: unknown) {
+					console.error("[plan] Error:", e);
+					return error(500, { error: toErrorMessage(e) });
+				}
+			},
+			{
+				body: t.Object({
+					workdir: t.Optional(t.String()),
+				}),
+			},
+		)
+		.post(
+			"/run",
+			async ({ body, error }) => {
+				const workspacePath = body.workdir || state.workspace?.path;
+				if (!workspacePath) {
+					return error(400, { error: "No workspace selected" });
+				}
+				try {
+					const absoluteWorkdir = resolve(workspacePath);
+					const params: Record<string, string> = { workdir: absoluteWorkdir };
+					if (body.job) params.job = body.job;
+					const result = await coreBridge.sendRequest("run", params);
+					return { result };
+				} catch (e: unknown) {
+					console.error("[run] Error:", e);
+					return error(500, { error: toErrorMessage(e) });
+				}
+			},
+			{
+				body: t.Object({
+					workdir: t.Optional(t.String()),
+					job: t.Optional(t.String()),
+				}),
+			},
+		)
+		.post(
+			"/stop",
+			async ({ body, error }) => {
+				try {
+					const params: Record<string, string> = {};
+					if (body.runId) params.runId = body.runId;
+					const result = await coreBridge.sendRequest("stop", params);
+					return { result };
+				} catch (e: unknown) {
+					console.error("[stop] Error:", e);
+					return error(500, { error: toErrorMessage(e) });
+				}
+			},
+			{
+				body: t.Object({
+					runId: t.Optional(t.String()),
+				}),
+			},
+		)
+		.onError(({ code }) => {
+			if (code === "NOT_FOUND") {
+				return { error: "Not found" };
+			}
+		});
 
-            req.signal.addEventListener("abort", () => {
-              sseClients.delete(sendEvent);
-            });
-          },
-        });
-        return new Response(stream, {
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-            "Access-Control-Allow-Origin": "*",
-          },
-        });
-      }
+	for (let port = basePort; port <= PORT_END; port += 1) {
+		if (tryServe(port, app)) {
+			state.port = port;
+			break;
+		}
+	}
+	if (!state.port && basePort !== PORT_START) {
+		for (let port = PORT_START; port < basePort; port += 1) {
+			if (tryServe(port, app)) {
+				state.port = port;
+				break;
+			}
+		}
+	}
+	if (!state.port) {
+		throw new Error("Failed to bind bridge port");
+	}
 
-      if ((url.pathname === "/plan" || url.pathname === "/run" || url.pathname === "/stop") && req.method === "POST") {
-        try {
-          const body = await req.json();
-          const workspacePath = body.workdir || currentWorkspace?.path;
-          if (!workspacePath) {
-            return Response.json(
-              { error: "workspace não selecionado" },
-              { status: 400, headers: { "Access-Control-Allow-Origin": "*" } },
-            );
-          }
-          const absoluteWorkdir = resolve(workspacePath);
-          currentWorkspace = await setActiveWorkspace(absoluteWorkdir);
+	await writeBridgeInfo({
+		port: state.port,
+		channel,
+		startedAt,
+	});
 
-          const params: Record<string, string> = { workdir: absoluteWorkdir };
-          if (body.job) params.job = body.job;
-          if (body.runId) params.runId = body.runId;
-
-          const result = await coreBridge.sendRequest(url.pathname.replace("/", ""), params);
-          return Response.json({ result }, { headers: { "Access-Control-Allow-Origin": "*" } });
-        } catch (e: unknown) {
-          return Response.json(
-            { error: e instanceof Error ? e.message : String(e) },
-            { status: 500, headers: { "Access-Control-Allow-Origin": "*" } },
-          );
-        }
-      }
-
-      return new Response("Not found", { status: 404 });
-    },
-  });
-
-  console.log(`Gravity Bridge API listening on http://localhost:${port}`);
+	console.log(`Gravity Bridge API listening on http://localhost:${state.port}`);
+	return { port: state.port, channel, startedAt };
 }
