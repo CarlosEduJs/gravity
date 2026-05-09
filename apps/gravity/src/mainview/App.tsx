@@ -5,15 +5,15 @@ import { ThemeProvider } from "../components/theme-provider";
 import { GravityEventsProvider } from "../features/logs/useGravityEvents";
 
 export default function App() {
-	return (
-		<ThemeProvider defaultTheme="system">
-			<WorkspaceProvider>
-				<GravityEventsProvider>
-					<BrowserRouter>
-						<AppRouter />
-					</BrowserRouter>
-				</GravityEventsProvider>
-			</WorkspaceProvider>
-		</ThemeProvider>
-	);
+  return (
+    <ThemeProvider defaultTheme="system">
+      <WorkspaceProvider>
+        <GravityEventsProvider>
+          <BrowserRouter>
+            <AppRouter />
+          </BrowserRouter>
+        </GravityEventsProvider>
+      </WorkspaceProvider>
+    </ThemeProvider>
+  );
 }

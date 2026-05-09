@@ -52,31 +52,30 @@ export default function WorkspaceSwitcher({
             <DropdownMenuSubTrigger>
               Switch Workspace <DropdownMenuShortcut>⌘W</DropdownMenuShortcut>
             </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className={"w-56 flex flex-col gap-2"}>
-                <DropdownMenuGroup>
-                  <DropdownMenuLabel>{path}</DropdownMenuLabel>
-                  <div className="flex flex-col gap-2 px-1">
-                    {recentWorkspaces.map((workspace) => (
-                      <DropdownMenuItem
-                        key={workspace.id}
-                        onClick={() => onSelect(workspace.path)}
-                      >
-                        <WorkspaceIdentity
-                          name={workspace.name}
-                          path={workspace.path}
-                          showName={true}
+            <DropdownMenuSubContent className={"w-56 flex flex-col gap-2"}>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>{path}</DropdownMenuLabel>
+                <div className="flex flex-col gap-2 px-1">
+                  {recentWorkspaces.map((workspace) => (
+                    <DropdownMenuItem key={workspace.id} onClick={() => onSelect(workspace.path)}>
+                      <WorkspaceIdentity
+                        name={workspace.name}
+                        path={workspace.path}
+                        showName={true}
+                      />
+                      {workspace.path === path && (
+                        <HugeiconsIcon
+                          icon={CheckmarkCircle01Icon}
+                          className="size-4 absolute right-2"
                         />
-                        {workspace.path === path && (
-                          <HugeiconsIcon
-                            icon={CheckmarkCircle01Icon}
-                            className="size-4 absolute right-2"
-                          />
-                        )}
-                      </DropdownMenuItem>
-                    ))}
-                  </div>
-                </DropdownMenuGroup>
-                <DropdownMenuItem onClick={onPick}>Pick Workspace <DropdownMenuShortcut>⌘P</DropdownMenuShortcut></DropdownMenuItem>
+                      )}
+                    </DropdownMenuItem>
+                  ))}
+                </div>
+              </DropdownMenuGroup>
+              <DropdownMenuItem onClick={onPick}>
+                Pick Workspace <DropdownMenuShortcut>⌘P</DropdownMenuShortcut>
+              </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
         </DropdownMenuGroup>
@@ -95,7 +94,11 @@ interface WorkspaceIdentityProps {
 function WorkspaceIdentity({ name, path, showName, className }: WorkspaceIdentityProps) {
   return (
     <div className={cn("flex items-center gap-2", className)}>
-      <div className={cn("w-4 h-4 bg-primary rounded-full flex items-center justify-center text-background text-xs font-medium")}>
+      <div
+        className={cn(
+          "w-4 h-4 bg-primary rounded-full flex items-center justify-center text-background text-xs font-medium",
+        )}
+      >
         {name ? name[0].toUpperCase() : "?"}
       </div>
       {showName && <h2 className="font-semibold">{name || path}</h2>}

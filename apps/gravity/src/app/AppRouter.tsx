@@ -9,17 +9,17 @@ import BridgeOffline from "../pages/BridgeOffline";
 import { useBridgeStatus } from "../hooks/useBridgeStatus";
 
 export default function AppRouter() {
-	const { activeWorkspace, loading } = useWorkspace();
-	const hasWorkspace = Boolean(activeWorkspace?.path);
-	const { status, retry, info } = useBridgeStatus();
+  const { activeWorkspace, loading } = useWorkspace();
+  const hasWorkspace = Boolean(activeWorkspace?.path);
+  const { status, retry, info } = useBridgeStatus();
 
-	if (status === "offline") {
-		return <BridgeOffline onRetry={retry} info={info} />;
-	}
+  if (status === "offline") {
+    return <BridgeOffline onRetry={retry} info={info} />;
+  }
 
-	if (loading || status === "checking") {
-		return null;
-	}
+  if (loading || status === "checking") {
+    return null;
+  }
 
   return (
     <Routes>
