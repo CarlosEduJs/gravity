@@ -44,3 +44,21 @@ func (sm *SessionManager) Cancel(runID string) bool {
 	}
 	return false
 }
+
+// CancelAll cancela todas as sessões ativas (usado no graceful shutdown)
+func (sm *SessionManager) CancelAll() {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	
+	for runID, cancel := range sm.runs {
+		cancel()
+		delete(sm.runs, runID)
+	}
+}
+
+// ActiveRuns retorna a contagem de execuções ativas
+func (sm *SessionManager) ActiveRuns() int {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	return len(sm.runs)
+}
