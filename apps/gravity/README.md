@@ -1,61 +1,62 @@
-# React + Tailwind + Vite Electrobun Template
+# Gravity Desktop
 
-A fast Electrobun desktop app template with React, Tailwind CSS, and Vite for hot module replacement (HMR).
+The Gravity desktop application built with Electrobun.
 
 ## Getting Started
 
 ```bash
-# Install dependencies
+# Install dependencies (at monorepo root)
 bun install
 
-# Development without HMR (uses bundled assets)
-bun run dev
+# Build Go core (required dependency)
+make build-core
 
-# Development with HMR (recommended)
+# Run in development with HMR
 bun run dev:hmr
 
 # Build for production
-bun run build
-
-# Build for production release
-bun run build:prod
+bun run build:desktop
 ```
 
-## How HMR Works
+## How It Works
 
-When you run `bun run dev:hmr`:
+### Core Communication
 
-1. **Vite dev server** starts on `http://localhost:5173` with HMR enabled
-2. **Electrobun** starts and detects the running Vite server
-3. The app loads from the Vite dev server instead of bundled assets
-4. Changes to React components update instantly without full page reload
+The desktop app communicates with the Go core (`packages/core`) through a child process model:
 
-When you run `bun run dev` (without HMR):
+1. **Process Spawning**: The Bun backend (`src/bun/core.ts`) spawns `gravity-core` as a child process
+2. **STDIO JSON-RPC**: Communication happens via JSON-RPC 2.0 over stdin/stdout
+3. **Type Safety**: ElysiaJS + Eden Treaty wrap the raw JSON-RPC calls for end-to-end typing
 
-1. Electrobun starts and loads from `views://mainview/index.html`
-2. You need to rebuild (`bun run build`) to see changes
+### HMR Flow
+
+When running `bun run dev:hmr`:
+
+1. Vite dev server starts on `http://localhost:5173` with HMR
+2. Electrobun detects the running Vite server
+3. React components update instantly without full reload
 
 ## Project Structure
 
 ```
-├── src/
-│   ├── bun/
-│   │   └── index.ts        # Main process (Electrobun/Bun)
-│   └── mainview/
-│       ├── App.tsx         # React app component
-│       ├── main.tsx        # React entry point
-│       ├── index.html      # HTML template
-│       └── index.css       # Tailwind CSS
-├── electrobun.config.ts    # Electrobun configuration
-├── vite.config.ts          # Vite configuration
-├── tailwind.config.js      # Tailwind configuration
-└── package.json
+src/
+├── bun/
+│   └── core.ts      # Backend process (spawns Go core)
+├── mainview/
+│   ├── App.tsx     # React app
+│   ├── main.tsx    # Entry point
+│   └── index.html  # HTML template
+├── stores/         # State management
+└── components/    # React components
 ```
 
-## Customizing
+## Dependencies
 
-- **React components**: Edit files in `src/mainview/`
-- **Tailwind theme**: Edit `tailwind.config.js`
-- **Vite settings**: Edit `vite.config.ts`
-- **Window settings**: Edit `src/bun/index.ts`
-- **App metadata**: Edit `electrobun.config.ts`
+- **Go Core**: Requires compiled `gravity-core` binary in `bin/`
+- **UI Package**: Consumes shared components from `@gravity/ui`
+
+## Common Tasks
+
+- Add new UI components
+- Integrate new core commands via RPC
+- Set up state management for Go responses
